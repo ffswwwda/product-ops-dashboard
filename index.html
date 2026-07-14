@@ -255,23 +255,40 @@
 
         <!-- ============ OGSM 周复盘 ============ -->
         <section id="page-review-ogsms" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">📋 OGSM周复盘</h1>
-                <p class="page-subtitle">表格形式：板块/目的/目标/策略/衡量/计划/店铺/责任人；完成D与检查根据周期数据自动生成，可编辑</p></div>
+            <div class="page-header"><div><h1 class="page-title">📋 OGSM 周复盘 / 7月计划</h1>
+                <p class="page-subtitle">「真实OGSM」为商品部7月飞机杯实际计划与周进度；「生成周复盘」为模板工具（按看板数据自动填D/检查）</p></div>
                 <div class="page-actions"><button class="btn btn-secondary" onclick="openOgsmConfig()">⚙️ 编辑OGSM配置</button></div></div>
-            <div class="card"><div class="card-header"><div class="card-title">📅 OGSM周复盘</div>
-                <div class="card-subtitle">每周填写；同周再次保存覆盖；部分单品追踪用其独立周期</div></div>
-                <div class="card-body" style="padding:20px;">
-                    <div class="filter-bar" style="margin-bottom:20px;">
-                        <div class="filter-group"><span class="filter-label">选择周期</span>
-                            <select class="filter-select" id="ogsms-week"><option>第4周</option><option>第3周</option><option>第2周</option><option>第1周</option></select></div>
-                        <button class="btn btn-primary" onclick="renderWeeklyReview()">✨ 生成/填写周复盘</button>
-                        <button class="btn btn-secondary" onclick="autoFillWeeklyReview()">🤖 自动填写完成D与检查</button>
-                        <button class="btn btn-secondary" onclick="saveWeeklyReview()">💾 保存填写</button>
-                        <button class="btn btn-secondary" onclick="copyOGSMContent()">📋 复制内容</button>
-                    </div>
-                    <div id="ogsms-report" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-title">点击生成周复盘</div>
-                        <div class="empty-state-desc">系统将根据 OGSM配置 渲染表格，并自动填写完成D与检查字段</div></div></div>
-                </div></div>
+            <div style="display:flex;gap:8px;margin-bottom:16px;">
+                <button class="ogsm-tab active" id="ogsm-tab-real" onclick="switchOgsmTab('real')">📌 真实OGSM（7月）</button>
+                <button class="ogsm-tab" id="ogsm-tab-gen" onclick="switchOgsmTab('gen')">🛠 生成周复盘（模板）</button>
+            </div>
+            <!-- 真实 OGSM -->
+            <div id="ogsms-real-wrap">
+                <div class="card"><div class="card-header"><div class="card-title">📌 商品部 2026年7月 OGSM（飞机杯）</div>
+                    <div class="card-subtitle" id="ogsms-real-meta"></div></div>
+                    <div class="card-body" style="padding:20px;">
+                        <div class="filter-bar" style="margin-bottom:16px;">
+                            <button class="btn btn-secondary" onclick="copyOgsmReal()">📋 复制内容</button>
+                        </div>
+                        <div id="ogsms-real" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-title">加载中…</div></div></div>
+                    </div></div>
+            </div>
+            <!-- 生成周复盘 -->
+            <div id="ogsms-gen-wrap" style="display:none;">
+                <div class="card"><div class="card-header"><div class="card-title">📅 OGSM周复盘（模板）</div>
+                    <div class="card-subtitle">每周填写；同周再次保存覆盖；部分单品追踪用其独立周期</div></div>
+                    <div class="card-body" style="padding:20px;">
+                        <div class="filter-bar" style="margin-bottom:20px;">
+                            <div class="filter-group"><span class="filter-label">选择周期</span>
+                                <select class="filter-select" id="ogsms-week"><option>第4周</option><option>第3周</option><option>第2周</option><option>第1周</option></select></div>
+                            <button class="btn btn-primary" onclick="renderWeeklyReview()">✨ 生成/填写周复盘</button>
+                            <button class="btn btn-secondary" onclick="autoFillWeeklyReview()">🤖 自动填写完成D与检查</button>
+                            <button class="btn btn-secondary" onclick="saveWeeklyReview()">💾 保存填写</button>
+                            <button class="btn btn-secondary" onclick="copyOGSMContent()">📋 复制内容</button>
+                        </div>
+                        <div id="ogsms-report" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-title">点击生成周复盘</div>
+                            <div class="empty-state-desc">系统将根据 OGSM配置 渲染表格，并自动填写完成D与检查字段</div></div></div>
+                    </div></div>
             </div>
         </section>
 

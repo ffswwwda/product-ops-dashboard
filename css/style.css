@@ -533,6 +533,25 @@ body::after {
 .status-danger { background: rgba(239, 68, 68, 0.15); color: var(--radium-accent-red); }
 .status-info { background: rgba(0, 240, 255, 0.15); color: var(--radium-accent-cyan); }
 
+/* ===== OGSM 页签切换 ===== */
+.ogsm-tab {
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--radium-text-muted);
+    border: 1px solid var(--radium-border);
+    border-radius: 8px;
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all .15s;
+}
+.ogsm-tab:hover { border-color: var(--radium-accent-cyan); color: var(--radium-text-primary); }
+.ogsm-tab.active {
+    background: linear-gradient(135deg, var(--radium-accent-cyan), var(--radium-accent-blue));
+    color: #fff;
+    border-color: transparent;
+}
+
 /* ===== OGSM 复盘表 ===== */
 .ogsm-table th {
     background: rgba(255, 255, 255, 0.03);

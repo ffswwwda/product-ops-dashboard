@@ -22,13 +22,17 @@ OUT = os.path.join(ROOT, 'js', 'data', 'data.json')
 SITES = ['AC美', 'BV美', 'UK英', 'EU欧']
 CATS = ['飞机杯', '增大器', '龟头训练器']
 LAYERS = ['超爆', '爆款', '头部', '腰部', '尾部']
-CHANNELS = ['亚马逊', '独立站', 'eBay', '速卖通']
+# 渠道：BV美真实渠道体系（来源：6月1日-6月20日 BV美器具组渠道销量）
+# SEM / EMAIL / 直访 / SEO / 信息流 / 联盟 / 社媒 / 其他
+CHANNELS = ['SEM', 'EMAIL', '直访', 'SEO', '信息流', '联盟', '社媒', '其他']
 
+# BV美采用真实渠道占比（来自渠道销量表合计行：SEM 984 / EMAIL 185 / 直访 129 /
+# SEO 48 / 信息流 43 / 联盟 23 / 社媒 11 / 其他 2，合计 1425 单）；其余站点为演示占比。
 CH_SHARE = {
-    'AC美': {'亚马逊': .50, '独立站': .22, 'eBay': .16, '速卖通': .12},
-    'BV美': {'亚马逊': .58, '独立站': .15, 'eBay': .14, '速卖通': .13},
-    'UK英': {'亚马逊': .62, '独立站': .10, 'eBay': .18, '速卖通': .10},
-    'EU欧': {'亚马逊': .55, '独立站': .12, 'eBay': .15, '速卖通': .18},
+    'AC美': {'SEM': .55, 'EMAIL': .10, '直访': .12, 'SEO': .06, '信息流': .07, '联盟': .05, '社媒': .04, '其他': .01},
+    'BV美': {'SEM': .6905, 'EMAIL': .1298, '直访': .0905, 'SEO': .0337, '信息流': .0302, '联盟': .0161, '社媒': .0077, '其他': .0015},
+    'UK英': {'SEM': .50, 'EMAIL': .08, '直访': .10, 'SEO': .08, '信息流': .09, '联盟': .10, '社媒': .04, '其他': .01},
+    'EU欧': {'SEM': .52, 'EMAIL': .09, '直访': .11, 'SEO': .07, '信息流': .07, '联盟': .08, '社媒': .05, '其他': .01},
 }
 AOV = {'飞机杯': 72, '增大器': 118, '龟头训练器': 58}
 CONV = {'超爆': .185, '爆款': .150, '头部': .115, '腰部': .085, '尾部': .055}
@@ -88,7 +92,7 @@ def assign_channel(site, code):
         acc += sh
         if r <= acc:
             return ch
-    return '亚马逊'
+    return list(shares.keys())[-1]
 
 def noise(code, salt):
     return 0.85 + (abs(hash(code + salt)) % 300) / 1000.0  # 0.85~1.15
@@ -109,6 +113,12 @@ def build_sku_month(sku, month, scale=1.0):
     aov = AOV[cat] * (0.9 + (abs(hash(code + 'aov')) % 200) / 1000.0)
     sales = round(orders * aov)
     conv = CONV.get(layer, .08) * (0.85 + (abs(hash(code + 'c')) % 300) / 1000.0)
+    # 渠道拆分：单品订单按站点渠道占比分配到各渠道（多通道，保留浮动值）
+    # 聚合时各 SKU 浮动值相加 => 渠道占比精确等于真实占比；仅展示时取整。
+    shares = CH_SHARE[site]
+    ch_orders = {ch: orders * sh for ch, sh in shares.items()}
+    ch_sales = {ch: ch_orders[ch] * aov for ch in ch_orders}
+    dominant = max(shares, key=shares.get)
     return {'ns_code': code, 'site': site, 'category': cat, 'layer': layer,
             'est_layer': dflt(sku.get('estimate_position'), layer),
             'owner': dflt(sku.get('owner'), '未分配'),
@@ -117,7 +127,23 @@ def build_sku_month(sku, month, scale=1.0):
             'target_orders': target, 'last_month_sales': sku.get('last_month_sales'),
             'actual_orders': orders, 'actual_sales': sales,
             'aov': round(aov, 1), 'conv': round(conv, 4),
-            'channel': assign_channel(site, code)}
+            'channel': dominant,
+            'channels': {ch: {'sales': ch_sales[ch], 'orders': ch_orders[ch]} for ch in CHANNELS}}
+
+
+def fix_channel_integrity(r):
+    """修正取整误差：让单品各渠道订单/销售额之和精确等于整数 actual_orders/actual_sales，
+    使所有聚合（站点/类目/分层/总计）的渠道合计与总量严格一致。"""
+    dom = max(CHANNELS, key=lambda c: r['channels'][c]['orders'])
+    tot_o = sum(r['channels'][c]['orders'] for c in CHANNELS)
+    r['actual_orders'] = round(tot_o)
+    d_o = r['actual_orders'] - tot_o                     # 误差并入占比最大渠道
+    r['channels'][dom]['orders'] += d_o
+    r['channels'][dom]['sales'] += d_o * r['aov']
+    tot_s = sum(r['channels'][c]['sales'] for c in CHANNELS)
+    r['actual_sales'] = round(tot_s)
+    d_s = r['actual_sales'] - tot_s
+    r['channels'][dom]['sales'] += d_s
 
 # 当前月 master(1108) + 缩放对齐目标
 sku_master_cur = [build_sku_month(s, CUR, 1.0) for s in SKU_TARGETS]
@@ -125,8 +151,10 @@ raw_total = sum(r['actual_sales'] for r in sku_master_cur) or 1
 target_total_cur = sum(TARGETS[CUR][s]['sales_target'] for s in SITES)
 scale_cur = (target_total_cur * TP[CUR] / 100.0) / raw_total
 for r in sku_master_cur:
-    r['actual_orders'] = max(0, round(r['actual_orders'] * scale_cur))
-    r['actual_sales'] = round(r['actual_orders'] * r['aov'])
+    for ch in CHANNELS:
+        r['channels'][ch]['orders'] *= scale_cur
+        r['channels'][ch]['sales'] = r['channels'][ch]['orders'] * r['aov']
+    fix_channel_integrity(r)
     # 目标单量同步按同一比例放大，使类目/分层进度与站点一致(demo 月)
     r['target_orders'] = max(0, round(r['target_orders'] * scale_cur))
 
@@ -142,8 +170,10 @@ for m in MONTHS:
     tt = sum(TARGETS[m][s]['sales_target'] for s in SITES)
     sc = (tt * att) / rt
     for r in master:
-        r['actual_orders'] = max(0, round(r['actual_orders'] * sc))
-        r['actual_sales'] = round(r['actual_orders'] * r['aov'])
+        for ch in CHANNELS:
+            r['channels'][ch]['orders'] *= sc
+            r['channels'][ch]['sales'] = r['channels'][ch]['orders'] * r['aov']
+        fix_channel_integrity(r)
     sku_master_hist[m] = master
 
 # sku_index: ns_code|site -> 明细
@@ -191,19 +221,23 @@ def aggregate(master, month):
     tot_s = tot_o = 0
     for r in master:
         s, cat, layer = r['site'], r['category'], r['layer']
-        sales, orders, ch, conv = r['actual_sales'], r['actual_orders'], r['channel'], r['conv']
+        sales, orders, conv = r['actual_sales'], r['actual_orders'], r['conv']
         tgt_o = r['target_orders']
         tot_s += sales; tot_o += orders
         bs = agg['by_site'][s]
         bs['sales'] += sales; bs['orders'] += orders
-        bs['channels'][ch]['sales'] += sales; bs['channels'][ch]['orders'] += orders
+        for ch in CHANNELS:
+            bs['channels'][ch]['sales'] += r['channels'][ch]['sales']
+            bs['channels'][ch]['orders'] += r['channels'][ch]['orders']
         bs['categories'][cat]['sales'] += sales; bs['categories'][cat]['orders'] += orders
         bs['layers'][layer]['sales'] += sales; bs['layers'][layer]['orders'] += orders
         bc = agg['by_category'][cat]
         bc['sales'] += sales; bc['orders'] += orders; bc['target_orders'] += tgt_o
         bc['by_site'][s]['sales'] += sales; bc['by_site'][s]['orders'] += orders
         bc['layers'][layer]['sales'] += sales; bc['layers'][layer]['orders'] += orders
-        bc['channels'][ch]['sales'] += sales; bc['channels'][ch]['orders'] += orders
+        for ch in CHANNELS:
+            bc['channels'][ch]['sales'] += r['channels'][ch]['sales']
+            bc['channels'][ch]['orders'] += r['channels'][ch]['orders']
         bl = agg['by_layer'][layer]
         bl['sales'] += sales; bl['orders'] += orders; bl['target_orders'] += tgt_o
         bl['sku_count'] += 1; bl['conv_sum'] += conv * orders; bl['conv_w'] += orders
@@ -496,6 +530,57 @@ def build_sku_period():
         'skus': skus, 'by_category': by_cat_out,
     }
 
+# ---------- 真实 OGSM（7月，飞机杯）----------
+def build_ogsm_july():
+    """解析商品部真实 OGSM CSV（data/ogsm_july_raw.csv）为结构化数据。
+    表头：板块/目的/目标/策略/衡量/计划/落地店铺/责任人 + 每周块(完成情况D/状态/检查C/下一步计划)。
+    板块/目的为空时向上沿用上一行。"""
+    import csv as _csv
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'ogsm_july_raw.csv')
+    if not os.path.exists(path):
+        return None
+    rows = list(_csv.reader(open(path, encoding='utf-8-sig', newline='')))
+    if len(rows) < 3:
+        return None
+    header = rows[0]
+    # 周块：从 col8 起，每 4 列一个（D/状态/检查/下一步）
+    week_labels = []
+    c = 8
+    while c < len(header) and header[c].strip():
+        week_labels.append(header[c].strip())
+        c += 4
+    out_rows = []
+    cur_board = ''
+    cur_obj = ''
+    for row in rows[2:]:
+        if not any(cell.strip() for cell in row[:8]):
+            continue
+        board = (row[0].strip() or cur_board)
+        obj = (row[1].strip() or cur_obj)
+        cur_board = board or cur_board
+        cur_obj = obj or cur_obj
+        weeks = []
+        for i, wl in enumerate(week_labels):
+            b = 8 + i * 4
+            weeks.append({
+                'label': wl,
+                'D': row[b].strip() if b < len(row) else '',
+                'status': row[b + 1].strip() if b + 1 < len(row) else '',
+                'check': row[b + 2].strip() if b + 2 < len(row) else '',
+                'next': row[b + 3].strip() if b + 3 < len(row) else '',
+            })
+        out_rows.append({
+            '板块': board, '目的': obj,
+            '目标': row[2].strip(), '策略': row[3].strip(),
+            '衡量': row[4].strip(), '计划': row[5].strip(),
+            '落地店铺': row[6].strip(), '责任人': row[7].strip(),
+            'weeks': weeks,
+        })
+    return {'meta': {'month': '2026年7月', 'source': '商品部 26年-7月OGSM - 飞机杯',
+                     'weeks': week_labels},
+            'rows': out_rows}
+
+
 out = {
     'month_meta': {'current_month': CUR, 'current_month_label': '2026年' + CUR,
                    'today': CUTOFF[CUR], 'cutoff': CUTOFF[CUR],
@@ -507,6 +592,7 @@ out = {
     'sku_period': build_sku_period(),
     'key_products': prev.get('key_products', []),
     'ogsm_config': build_ogsm_config(CUR),
+    'ogsm_july': build_ogsm_july(),
     'strategies': prev.get('strategies', []), 'records': prev.get('records', []),
     'price_targets': prev.get('price_targets', {}), 'struct_targets': prev.get('struct_targets', {}),
     'stats': prev.get('stats', {}),

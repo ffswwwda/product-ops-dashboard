@@ -13,7 +13,7 @@ const state = { page: 'site', sub: 'all', month: '7月', cutoff: '2026-07-14',
 const SITES = ['AC美', 'BV美', 'UK英', 'EU欧'];
 const CATS = ['飞机杯', '增大器', '龟头训练器'];
 const LAYERS = ['超爆', '爆款', '头部', '腰部', '尾部'];
-const CHANNELS = ['亚马逊', '独立站', 'eBay', '速卖通'];
+const CHANNELS = ['SEM', 'EMAIL', '直访', 'SEO', '信息流', '联盟', '社媒', '其他'];
 let exchangeRates = { 'AC美': 6.7167, 'BV美': 6.7167, 'UK英': 9.0339, 'EU欧': 7.8122 };
 const siteColor = { 'AC美': '#22d3ee', 'BV美': '#60a5fa', 'UK英': '#a78bfa', 'EU欧': '#34d399' };
 const layerColor = { '超爆': '#f59e0b', '爆款': '#fb7185', '头部': '#60a5fa', '腰部': '#34d399', '尾部': '#94a3b8' };
@@ -31,6 +31,7 @@ const money = n => '¥' + Math.round(n || 0).toLocaleString();
 const fmtW = n => '¥' + (n / 10000).toFixed(1) + '万';
 const pct = n => (n || 0).toFixed(1) + '%';
 const num = n => (n || 0).toLocaleString();
+const rint = n => Math.round(n || 0);
 const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
 function cls(progress, tp) {
     const expect = (tp == null ? state.timeProgress : tp);
@@ -257,7 +258,7 @@ function switchPage(page, sub) {
     else if (page === 'product') renderProductLayer(sub);
     else if (page === 'operations' && sub === 'ops') renderOps();
     else if (page === 'operations' && sub === 'ads') renderAds();
-    else if (page === 'review' && sub === 'ogsms') renderWeeklyReview();
+    else if (page === 'review' && sub === 'ogsms') switchOgsmTab('real');
     else if (page === 'review' && sub === 'monthly') generateMonthlyReview();
     else if (page === 'strategy' && sub === 'gen') generateStrategy();
     else if (page === 'strategy' && sub === 'lib') renderStrategyLib();
@@ -329,7 +330,7 @@ function renderSiteDetail(site) {
     // 渠道(双轴)
     shopLayerChart = null;
     const chc = safeInit('shop-channel-chart');
-    chc.setOption(dualBar(CHANNELS, CHANNELS.map(c => d.channels[c].sales), CHANNELS.map(c => d.channels[c].orders), '销售额', '单量', c => siteColor[Object.keys(siteColor)[0]]));
+    chc.setOption(dualBar(CHANNELS, CHANNELS.map(c => rint(d.channels[c].sales)), CHANNELS.map(c => rint(d.channels[c].orders)), '销售额', '单量', c => siteColor[Object.keys(siteColor)[0]]));
     // 类目
     const cac = safeInit('shop-category-chart');
     cac.setOption(dualBar(CATS, CATS.map(c => d.categories[c].sales), CATS.map(c => d.categories[c].orders), '销售额', '单量'));
@@ -344,7 +345,7 @@ function renderSiteDetail(site) {
     lac.off('click'); lac.on('click', p => { state.shopLayer = p.name; renderShopSkuTable(site); document.getElementById('shop-layer-hint').textContent = '当前分层：' + p.name + '（点击其它层可切换）'; });
     // 明细表
     let rows = '';
-    CHANNELS.forEach(c => { const v = d.channels[c]; rows += brkRow('渠道', c, v.sales, v.orders, d.sales); });
+    CHANNELS.forEach(c => { const v = d.channels[c]; rows += brkRow('渠道', c, rint(v.sales), rint(v.orders), d.sales); });
     CATS.forEach(c => { const v = d.categories[c]; rows += brkRow('类目', c, v.sales, v.orders, d.sales); });
     LAYERS.forEach(l => { const v = d.layers[l]; rows += brkRow('分层', l, v.sales, v.orders, d.sales); });
     document.getElementById('shop-breakdown-table').innerHTML = rows;
@@ -369,9 +370,10 @@ function renderShopSkuTable(site) {
     document.getElementById('shop-sku-table').innerHTML = rows || '<tr><td colspan="9">无数据</td></tr>';
 }
 function dualBar(cats, salesArr, orderArr, sName, oName, colorFn) {
+    const rotate = cats.length > 5 ? 30 : 0;
     return { tooltip: { trigger: 'axis' }, legend: { data: [sName, oName], textStyle: { color: '#94a3b8' } },
-        grid: { left: 60, right: 50, top: 30, bottom: 30 },
-        xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8' } },
+        grid: { left: 60, right: 50, top: 30, bottom: rotate ? 60 : 30 },
+        xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8', rotate: rotate, interval: 0 } },
         yAxis: [{ type: 'value', name: sName, axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
                 { type: 'value', name: oName, axisLabel: { color: '#94a3b8' } }],
         series: [{ name: sName, type: 'bar', data: salesArr, itemStyle: { color: '#22d3ee', borderRadius: [6, 6, 0, 0] }, barWidth: '45%' },
@@ -428,7 +430,7 @@ function renderCategoryDetail(cat) {
     sc.setOption(barOpt(layersToShow, layersToShow.map(l => list.filter(r => r.layer === l).reduce((s, r) => s + r.actual_orders, 0)), '单量', l => layerColor[l]));
     // 渠道单量
     const cc = safeInit('cat-detail-channel-chart');
-    cc.setOption(barOpt(CHANNELS, CHANNELS.map(c => list.filter(r => r.channel === c).reduce((s, r) => s + r.actual_orders, 0)), '单量'));
+    cc.setOption(barOpt(CHANNELS, CHANNELS.map(c => rint(list.reduce((s, r) => s + ((r.channels && r.channels[c] && r.channels[c].orders) || 0), 0))), '单量'));
     // 分店铺单量
     const shc = safeInit('cat-detail-shop-chart');
     const shopsToShow = shop === '全部店铺' ? SITES : [shop];
@@ -538,8 +540,11 @@ function openSkuModal(code, site) {
         card('变化类型', r.change_type, '上月 ' + num(r.last_month_sales), '') +
         card('类目', r.category, '负责人 ' + esc(r.owner), '') +
         card('超前/滞后', (Math.round(r.actual_orders - r.target_orders * tpProg / 100) >= 0 ? '+' : '') + num(Math.round(r.actual_orders - r.target_orders * tpProg / 100)), '单量口径', Math.round(r.actual_orders - r.target_orders * tpProg / 100) >= 0 ? 'green' : 'red');
+    const chParts = CHANNELS.filter(c => r.channels && r.channels[c] && r.channels[c].orders > 0)
+        .sort((a, b) => r.channels[b].orders - r.channels[a].orders)
+        .slice(0, 3).map(c => `${c} ${num(rint(r.channels[c].orders))}`);
     document.getElementById('sku-modal-extra').innerHTML =
-        `<div style="font-size:12px;color:var(--radium-text-muted);">渠道：${r.channel} ｜ 备注：${esc(r.remark) || '—'}</div>`;
+        `<div style="font-size:12px;color:var(--radium-text-muted);">渠道（多通道）：${chParts.join(' / ') || '—'} ｜ 备注：${esc(r.remark) || '—'}</div>`;
     const st = document.getElementById('sku-series-title'); if (st) st.textContent = '📈 近 11 周单量走势（本周期）';
     const sc = safeInit('sku-series-chart');
     const ser = r.series || [];
@@ -1050,6 +1055,61 @@ function saveWeeklyReview() {
 function copyOGSMContent() {
     const txt = document.getElementById('ogsms-report').innerText;
     navigator.clipboard.writeText(txt).then(() => alert('已复制周复盘内容'));
+}
+/* ---------- 真实 OGSM（7月，飞机杯）---------- */
+function switchOgsmTab(tab) {
+    const real = tab === 'real';
+    document.getElementById('ogsm-tab-real').classList.toggle('active', real);
+    document.getElementById('ogsm-tab-gen').classList.toggle('active', !real);
+    document.getElementById('ogsms-real-wrap').style.display = real ? '' : 'none';
+    document.getElementById('ogsms-gen-wrap').style.display = real ? 'none' : '';
+    if (real) renderOgsmReal();
+    else renderWeeklyReview();
+}
+function ogsmStatusTag(s) {
+    const m = { '滞后': 'red', '超前': 'green', '正常': 'cyan', '未开始': 'yellow' };
+    return `<span class="tag tag-${m[s] || 'yellow'}">${esc(s || '—')}</span>`;
+}
+function renderOgsmReal() {
+    const o = appData.ogsm_july;
+    const box = document.getElementById('ogsms-real');
+    if (!o || !o.rows || !o.rows.length) {
+        box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">暂无真实OGSM数据</div><div class="empty-state-desc">需将「商品部 26年-7月OGSM」CSV 放入 data/ 目录后重新生成</div></div>';
+        return;
+    }
+    const meta = document.getElementById('ogsms-real-meta');
+    if (meta) meta.textContent = (o.meta.source || '') + ' ｜ 周次：' + (o.meta.weeks || []).join(' / ');
+    let html = `<table class="data-table ogsm-table"><thead><tr>
+        <th style="min-width:84px;">板块</th><th style="min-width:110px;">目的</th>
+        <th style="min-width:160px;">目标</th><th style="min-width:150px;">策略</th>
+        <th style="min-width:130px;">衡量</th><th style="min-width:150px;">计划</th>
+        <th style="min-width:84px;">店铺</th><th style="min-width:70px;">责任人</th>
+        <th style="min-width:230px;">完成情况D</th><th style="min-width:70px;">状态</th>
+        <th style="min-width:230px;">检查C</th><th style="min-width:200px;">下一步计划</th>
+    </tr></thead><tbody>`;
+    o.rows.forEach(r => {
+        const w = r.weeks[0] || {};
+        html += `<tr>
+            <td><b>${esc(r['板块'])}</b></td>
+            <td style="white-space:pre-wrap;">${esc(r['目的'])}</td>
+            <td style="white-space:pre-wrap;">${esc(r['目标'])}</td>
+            <td style="white-space:pre-wrap;">${esc(r['策略'])}</td>
+            <td style="white-space:pre-wrap;">${esc(r['衡量'])}</td>
+            <td style="white-space:pre-wrap;">${esc(r['计划'])}</td>
+            <td>${esc(r['落地店铺'])}</td>
+            <td>${esc(r['责任人'])}</td>
+            <td style="white-space:pre-wrap;">${esc(w.D)}</td>
+            <td>${ogsmStatusTag(w.status)}</td>
+            <td style="white-space:pre-wrap;">${esc(w.check)}</td>
+            <td style="white-space:pre-wrap;">${esc(w.next)}</td>
+        </tr>`;
+    });
+    html += `</tbody></table>`;
+    box.innerHTML = html;
+}
+function copyOgsmReal() {
+    const txt = document.getElementById('ogsms-real').innerText;
+    navigator.clipboard.writeText(txt).then(() => alert('已复制真实OGSM内容'));
 }
 function generateMonthlyReview() {
     const m = document.getElementById('monthly-month').value || state.month;
