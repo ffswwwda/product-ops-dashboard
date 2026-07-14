@@ -127,6 +127,8 @@ scale_cur = (target_total_cur * TP[CUR] / 100.0) / raw_total
 for r in sku_master_cur:
     r['actual_orders'] = max(0, round(r['actual_orders'] * scale_cur))
     r['actual_sales'] = round(r['actual_orders'] * r['aov'])
+    # 目标单量同步按同一比例放大，使类目/分层进度与站点一致(demo 月)
+    r['target_orders'] = max(0, round(r['target_orders'] * scale_cur))
 
 # 历史月 master(缩放对齐各自目标 × 达成率，制造真实环比趋势)
 sku_master_hist = {}

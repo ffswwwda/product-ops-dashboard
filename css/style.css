@@ -676,10 +676,67 @@ input[type="checkbox"] {
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
 .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 20px; }
 
+/* =====================================================================
+ * 目标对照总览 (Target Overview Hero) — 对标 OGSM 周复盘的目标写法
+ * 每个含目标的页面顶部统一展示：目标额 / 完成额 / 时间进度 / 目标进度 / 超前滞后 / 预估完成率
+ * ===================================================================== */
+.target-hero {
+    position: relative;
+    background: linear-gradient(135deg, rgba(0,240,255,0.06), rgba(77,139,255,0.05), rgba(168,85,247,0.06));
+    border: 1px solid var(--radium-border-hover);
+    border-radius: var(--radium-radius-lg);
+    padding: 22px 24px 18px;
+    margin-bottom: 8px;
+    box-shadow: var(--radium-shadow-md);
+}
+.target-hero::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 4px; border-radius: var(--radium-radius-lg) 0 0 var(--radium-radius-lg);
+    background: linear-gradient(180deg, var(--radium-accent-cyan), var(--radium-accent-purple));
+}
+.th-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.th-title { font-size: 15px; font-weight: 700; color: var(--radium-text-strong); }
+.th-meta { font-size: 12px; color: var(--radium-text-muted); }
+.th-meta b { color: var(--radium-accent-cyan); font-weight: 600; }
+
+.th-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.th-card {
+    background: var(--radium-bg-card);
+    border: 1px solid var(--radium-border);
+    border-radius: var(--radium-radius-md);
+    padding: 14px 16px 12px;
+    position: relative; overflow: hidden;
+}
+.th-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.th-card.k-target::before { background: var(--radium-accent-blue); }
+.th-card.k-done::before { background: var(--radium-accent-cyan); }
+.th-card.k-rate::before { background: var(--radium-accent-yellow); }
+.th-card.k-est::before { background: var(--radium-accent-purple); }
+.th-card .th-label { font-size: 11px; color: var(--radium-text-muted); letter-spacing: .5px; text-transform: uppercase; }
+.th-card .th-num { font-size: 24px; font-weight: 700; margin: 6px 0 2px; color: var(--radium-text-strong); line-height: 1.15; }
+.th-card.k-target .th-num { color: var(--radium-accent-blue); }
+.th-card.k-done .th-num { color: var(--radium-accent-cyan); }
+.th-card.k-rate .th-num { color: var(--radium-accent-yellow); }
+.th-card.k-est .th-num { color: var(--radium-accent-purple); }
+.th-card .th-sub { font-size: 11px; color: var(--radium-text-muted); }
+
+/* 进度条 + 时间刻度标记 */
+.th-progress-wrap { margin-top: 16px; }
+.th-progress { position: relative; height: 14px; background: rgba(255,255,255,0.06); border-radius: 8px; overflow: hidden; }
+.th-progress-fill { height: 100%; border-radius: 8px; transition: width .6s cubic-bezier(.4,0,.2,1); }
+.th-progress-fill.pos { background: linear-gradient(90deg, var(--radium-accent-green), #4ade80); }
+.th-progress-fill.warn { background: linear-gradient(90deg, var(--radium-accent-yellow), #facc15); }
+.th-progress-fill.neg { background: linear-gradient(90deg, var(--radium-accent-red), #f87171); }
+.th-time-marker { position: absolute; top: -3px; height: 20px; width: 2px; background: var(--radium-text-strong); z-index: 3; box-shadow: 0 0 6px rgba(255,255,255,.6); }
+.th-legend { display: flex; gap: 18px; margin-top: 8px; font-size: 11px; color: var(--radium-text-muted); flex-wrap: wrap; }
+.th-legend b { color: var(--radium-text-strong); }
+
 /* ===== 响应式 ===== */
 @media (max-width: 1200px) {
     .grid-4 { grid-template-columns: repeat(2, 1fr); }
     .grid-5 { grid-template-columns: repeat(3, 1fr); }
+    .th-cards { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {

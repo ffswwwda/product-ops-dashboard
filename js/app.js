@@ -49,6 +49,64 @@ function card(title, value, sub, tone) {
         <div class="stat-card-sub">${sub || ''}</div></div>`;
 }
 
+/* 目标对照总览 Hero —— 对标 OGSM 周复盘「目标」写法：
+   目标额 / 完成额 / 时间进度 / 目标进度(完成进度) / 超前滞后 / 预估全月完成率+缺口 + 进度条时间刻度
+   o: {scope:'销售额'|'单量', target, actual, orders?, aov?, mom?, momLabel?, title, meta?} */
+function targetHeroHTML(o) {
+    const scope = o.scope || '销售额';
+    const target = o.target || 0, actual = o.actual || 0;
+    const tp = (o.timeProgress != null) ? o.timeProgress : state.timeProgress;
+    const fmt = scope === '单量' ? (v => num(v)) : (v => fmtW(v));
+    const rate = target ? actual / target * 100 : 0;
+    const estRate = tp ? rate * 100 / tp : 0;            // 预估全月完成率(%)
+    const estFull = tp ? actual * 100 / tp : actual;     // 预估全月值
+    const gap = actual - target * tp / 100;              // 实际 − 目标×时间进度（超前正/滞后负）
+    const progressGap = rate - tp;
+    const status = cls(rate, tp);                        // pos / warn / neg
+    const hi = rate > 100 ? 100 : rate;
+    const momTxt = (o.mom != null) ? `${pct(o.mom)}${o.mom >= 0 ? ' ↑' : ' ↓'}` : '';
+    return `<div class="target-hero">
+      <div class="th-head">
+        <span class="th-title">${esc(o.title || '目标对照总览')}</span>
+        <span class="th-meta">数据周期 ${esc(state.month)} · 截止 <b>${esc((o.cutoff || state.cutoff).slice(5))}</b> · 时间进度 <b>${pct(tp)}</b>${o.meta ? ' · ' + o.meta : ''}</span>
+      </div>
+      <div class="th-cards">
+        <div class="th-card k-target">
+          <div class="th-label">${scope === '单量' ? '目标单量' : '目标销售额'}</div>
+          <div class="th-num">${fmt(target)}</div>
+          <div class="th-sub">本月目标</div>
+        </div>
+        <div class="th-card k-done">
+          <div class="th-label">${scope === '单量' ? '完成单量' : '完成销售额'}</div>
+          <div class="th-num">${fmt(actual)}</div>
+          <div class="th-sub">${o.orders != null ? num(o.orders) + ' 单 · ' : ''}${scope === '单量' ? '实际单量' : '客单价 ' + (o.aov != null ? money(o.aov) : '—')}</div>
+        </div>
+        <div class="th-card k-rate">
+          <div class="th-label">${scope === '单量' ? '单量完成进度' : '销售进度（目标进度）'}</div>
+          <div class="th-num">${pct(rate)}</div>
+          <div class="th-sub">${progressGap >= 0 ? '🟢 超前 ' : '🔴 滞后 '}${Math.abs(progressGap).toFixed(1)}%</div>
+        </div>
+        <div class="th-card k-est">
+          <div class="th-label">预估全月完成率</div>
+          <div class="th-num">${pct(estRate)}</div>
+          <div class="th-sub">预估全月 ${fmt(estFull)} · ${gap >= 0 ? '盈余 ' : '缺口 '}${fmt(Math.abs(gap))}</div>
+        </div>
+      </div>
+      <div class="th-progress-wrap">
+        <div class="th-progress">
+          <div class="th-progress-fill ${status}" style="width:${hi}%"></div>
+          <div class="th-time-marker" style="left:${Math.min(tp, 100)}%"></div>
+        </div>
+        <div class="th-legend">
+          <span>目标进度（完成率）：<b>${pct(rate)}</b></span>
+          <span>时间进度：<b>${pct(tp)}</b></span>
+          <span>超前/滞后：<b class="${status === 'pos' ? 'tag-green' : status === 'neg' ? 'tag-red' : 'tag-yellow'}">${gap >= 0 ? '+' : '-'}${fmt(Math.abs(gap))}</b></span>
+          ${o.mom != null ? `<span>${esc(o.momLabel || '环比')}：<b>${momTxt}</b></span>` : ''}
+        </div>
+      </div>
+    </div>`;
+}
+
 /* ----------------- 加载 ----------------- */
 document.addEventListener('DOMContentLoaded', () => { loadData(); initNavigation(); });
 
@@ -145,11 +203,11 @@ function switchPage(page, sub) {
  * =================================================================== */
 function renderSiteAll() {
     const t = A.total, tgt = t.target_sales || 0;
-    document.getElementById('site-summary-cards').innerHTML =
-        card('总完成销售额', fmtW(t.sales), `截止 ${state.cutoff.slice(5)}`, 'cyan') +
-        card('目标销售额', fmtW(tgt), '本月目标(4店合计)', 'blue') +
-        card('目标进度', pct(t.target_progress), `时间进度 ${pct(state.timeProgress)}`, cls(t.target_progress, state.timeProgress)) +
-        card('超前 / 滞后', (t.gap >= 0 ? '+' : '-') + fmtW(Math.abs(t.gap)), '实际 − 目标×时间进度', t.gap >= 0 ? 'green' : 'red');
+    document.getElementById('site-summary-cards').innerHTML = targetHeroHTML({
+        scope: '销售额', target: tgt, actual: t.sales, orders: t.orders, aov: t.aov,
+        mom: A.mom.total, momLabel: '全站环比', title: '全部站点 · 目标对照总览',
+        meta: `${SITES.length} 店铺合并`
+    });
     // 排行
     const rank = safeInit('site-rank-chart');
     rank.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 60, right: 20, top: 20, bottom: 30 },
@@ -198,13 +256,11 @@ let shopLayerChart = null;
 function renderSiteDetail(site) {
     const d = A.by_site[site];
     document.getElementById('shop-detail-title').textContent = '🏪 ' + site + ' 店铺深度分析';
-    document.getElementById('shop-detail-cards').innerHTML =
-        card('总销售额', fmtW(d.sales), `截止 ${state.cutoff.slice(5)}`, 'cyan') +
-        card('目标销售额', fmtW(d.target_sales), '本月目标', 'blue') +
-        card('目标进度', pct(d.target_progress), `时间进度 ${pct(d.time_progress)}`, cls(d.target_progress, d.time_progress)) +
-        card('超前/滞后', (d.gap >= 0 ? '+' : '-') + fmtW(Math.abs(d.gap)), '', d.gap >= 0 ? 'green' : 'red') +
-        card('订单数', num(d.orders), `客单价 ${money(d.aov)}`, '') +
-        card('当月环比', pct(A.mom.by_site[site]) + (A.mom.by_site[site] >= 0 ? ' ↑' : ' ↓'), '按全月节奏', A.mom.by_site[site] >= 0 ? 'green' : 'red');
+    document.getElementById('shop-detail-cards').innerHTML = targetHeroHTML({
+        scope: '销售额', target: d.target_sales, actual: d.sales, orders: d.orders, aov: d.aov,
+        mom: A.mom.by_site[site], momLabel: '当月环比', title: site + ' · 目标对照总览',
+        meta: `目标进度 ${pct(d.target_progress)}`
+    });
     // 渠道(双轴)
     shopLayerChart = null;
     const chc = safeInit('shop-channel-chart');
@@ -296,13 +352,11 @@ function renderCategoryDetail(cat) {
     const gap = sales - targetSales * state.timeProgress / 100;
     const aov = orders ? sales / orders : 0;
     document.getElementById('cat-detail-title').textContent = ({ '飞机杯': '☕', '增大器': '💪', '龟头训练器': '🔵' }[cat] || '📦') + ' ' + cat + (shop === '全部店铺' ? '' : ' · ' + shop);
-    document.getElementById('cat-detail-cards').innerHTML =
-        card('销售额', fmtW(sales), `截止 ${state.cutoff.slice(5)}`, 'cyan') +
-        card('目标销售额', fmtW(targetSales), '本月目标', 'blue') +
-        card('完成进度', pct(prog), `时间进度 ${pct(state.timeProgress)}`, cls(prog, state.timeProgress)) +
-        card('超前/滞后', (gap >= 0 ? '+' : '-') + fmtW(Math.abs(gap)), '', gap >= 0 ? 'green' : 'red') +
-        card('环比(月)', pct(A.mom.by_category[cat]) + (A.mom.by_category[cat] >= 0 ? ' ↑' : ' ↓'), '按全月节奏', A.mom.by_category[cat] >= 0 ? 'green' : 'red') +
-        card('总单量', num(orders), `客单价 ${money(aov)}`, '');
+    document.getElementById('cat-detail-cards').innerHTML = targetHeroHTML({
+        scope: '销售额', target: targetSales, actual: sales, orders: orders, aov: aov,
+        mom: A.mom.by_category[cat], momLabel: '月度环比', title: cat + ' · 目标对照总览',
+        meta: `${orders} 单 · 客单价 ${money(aov)}` + (shop === '全部店铺' ? '' : ' · ' + shop)
+    });
     // 结构单量
     const sc = safeInit('cat-detail-structure-chart');
     const layersToShow = layerF === '全部层级' ? LAYERS : [layerF];
@@ -368,13 +422,11 @@ function renderProductAll() {
 function renderProductLayer(layer) {
     const d = A.by_layer[layer];
     document.getElementById('pl-title').textContent = ({ '超爆': '🔥', '爆款': '⚡', '头部': '🥇', '腰部': '🥈', '尾部': '🥉' }[layer] || '📦') + ' ' + layer + '商品';
-    document.getElementById('pl-cards').innerHTML =
-        card('销售额', fmtW(d.sales), '本周期的实际', 'cyan') +
-        card('单量', num(d.orders), '本周期实际单量', 'blue') +
-        card('转化率', pct(d.conv * 100), '分层加权转化率', 'green') +
-        card('目标进度', pct(d.target_progress), `时间进度 ${pct(state.timeProgress)}`, cls(d.target_progress, state.timeProgress)) +
-        card('SKU数', num(d.sku_count), `客单价 ${money(d.aov)}`, '') +
-        card('目标单量', num(d.target_orders), '本月目标', '');
+    document.getElementById('pl-cards').innerHTML = targetHeroHTML({
+        scope: '单量', target: d.target_orders, actual: d.orders,
+        title: layer + '商品 · 目标对照总览',
+        meta: `${num(d.sku_count)} 个SKU · 销售额 ${fmtW(d.sales)} · 转化率 ${pct(d.conv * 100)}`
+    });
     const sc = safeInit('pl-shop-chart');
     sc.setOption({ tooltip: { trigger: 'axis' }, legend: { data: ['销售额', '单量'], textStyle: { color: '#94a3b8' } },
         grid: { left: 60, right: 50, top: 30, bottom: 30 },
