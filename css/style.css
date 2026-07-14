@@ -513,6 +513,31 @@ body::after {
 .status-danger { background: rgba(239, 68, 68, 0.15); color: var(--radium-accent-red); }
 .status-info { background: rgba(0, 240, 255, 0.15); color: var(--radium-accent-cyan); }
 
+/* ===== OGSM 复盘表 ===== */
+.ogsm-table th {
+    background: rgba(255, 255, 255, 0.03);
+    white-space: nowrap;
+}
+.ogsm-table td {
+    vertical-align: top;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.ogsm-table td textarea {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--radium-border);
+    color: var(--radium-text-primary);
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 8px;
+    border-radius: 8px;
+    resize: vertical;
+}
+.ogsm-table td textarea:focus {
+    outline: none;
+    border-color: var(--radium-accent-cyan);
+}
+
 /* ===== 标签 ===== */
 .tag {
     display: inline-flex;

@@ -275,6 +275,97 @@ actuals[CUR]['total']['target_sales'] = target_total_cur
 actuals[CUR]['total']['target_progress'] = round(actuals[CUR]['total']['sales'] / target_total_cur * 100, 1)
 actuals[CUR]['total']['gap'] = round(actuals[CUR]['total']['sales'] - target_total_cur * TP[CUR] / 100.0)
 
+def build_ogsm_config(month):
+    """生成 OGSM 复盘表模板：每行=一个板块，含 目的/目标/策略/衡量/计划/店铺/责任人，
+       并携带 measure_type / measure_key / target_value 用于自动计算完成D与检查。"""
+    a = aggs[month]
+    cat_sales = a['by_category']
+    total_target = sum(TARGETS[month][s]['sales_target'] for s in SITES)
+    def f(code, label, formula):
+        return {'key': code, 'label': label, 'formula': formula}
+    def fmt_money(n):
+        return f'{n / 10000:.1f}万'
+    return {
+        'meta': {
+            'month': '2026年' + month,
+            'editable': True,
+            'note': '每月板块/指标可能变化：直接编辑本配置（板块与字段、数据源/公式），周复盘只填写"完成字段D"与"检查字段"。'
+        },
+        'sections': [
+            {
+                'id': 's1', 'name': '自营产品线', 'shop': 'AC美', 'owner': '刘锦霞',
+                'objective': '提升飞机杯类目销售能力',
+                'goal': f'飞机杯销售额达成{fmt_money(cat_sales["飞机杯"]["target_sales"])}',
+                'strategy': '优化主图视频+详情页',
+                'measurement': '销售额',
+                'plan': '6月完成30款优化',
+                'measure_type': 'category_sales', 'measure_key': '飞机杯',
+                'target_value': round(cat_sales['飞机杯']['target_sales']),
+                'actual_value': None,
+                'fields': [
+                    f('objective', '目的 Objective', '提升飞机杯类目销售能力'),
+                    f('goal', '目标 Goal', f'飞机杯销售额达成{fmt_money(cat_sales["飞机杯"]["target_sales"])}'),
+                    f('strategy', '策略 Strategy', '优化主图视频+详情页'),
+                    f('measurement', '衡量 Measure', '销售额'),
+                    f('plan', '计划 Action', '6月完成30款优化')
+                ]
+            },
+            {
+                'id': 's2', 'name': '用户需求导向转型', 'shop': 'BV美', 'owner': '刘玉辉',
+                'objective': '延长产品生命周期',
+                'goal': f'BV美销售额达成{fmt_money(a["by_site"]["BV美"]["target_sales"])}',
+                'strategy': '会员体系+售后回访',
+                'measurement': '销售额',
+                'plan': '6月搭建会员体系',
+                'measure_type': 'site_sales', 'measure_key': 'BV美',
+                'target_value': round(a['by_site']['BV美']['target_sales']),
+                'actual_value': None,
+                'fields': [
+                    f('objective', '目的 Objective', '延长产品生命周期'),
+                    f('goal', '目标 Goal', f'BV美销售额达成{fmt_money(a["by_site"]["BV美"]["target_sales"])}'),
+                    f('strategy', '策略 Strategy', '会员体系+售后回访'),
+                    f('measurement', '衡量 Measure', '销售额'),
+                    f('plan', '计划 Action', '6月搭建会员体系')
+                ]
+            },
+            {
+                'id': 's3', 'name': '增长策略（新品）', 'shop': 'UK英', 'owner': '邓佳',
+                'objective': '提升新品打造成功率',
+                'goal': '新品成功率达60%',
+                'strategy': '数据驱动选品+精准推广',
+                'measurement': '新品成功率',
+                'plan': '6月测试5款新品',
+                'measure_type': 'manual', 'measure_key': '',
+                'target_value': 5, 'actual_value': 4,
+                'fields': [
+                    f('objective', '目的 Objective', '提升新品打造成功率'),
+                    f('goal', '目标 Goal', '新品成功率达60%'),
+                    f('strategy', '策略 Strategy', '数据驱动选品+精准推广'),
+                    f('measurement', '衡量 Measure', '新品成功率'),
+                    f('plan', '计划 Action', '6月测试5款新品')
+                ]
+            },
+            {
+                'id': 's4', 'name': '全站销售达成', 'shop': '全部', 'owner': '刘玉辉',
+                'objective': '完成月度销售目标',
+                'goal': f'月度销售额达成{fmt_money(total_target)}',
+                'strategy': '分站点/类目运营提效',
+                'measurement': '销售额',
+                'plan': '月度目标',
+                'measure_type': 'total_sales', 'measure_key': '',
+                'target_value': round(total_target),
+                'actual_value': None,
+                'fields': [
+                    f('objective', '目的 Objective', '完成月度销售目标'),
+                    f('goal', '目标 Goal', f'月度销售额达成{fmt_money(total_target)}'),
+                    f('strategy', '策略 Strategy', '分站点/类目运营提效'),
+                    f('measurement', '衡量 Measure', '销售额'),
+                    f('plan', '计划 Action', '月度目标')
+                ]
+            }
+        ]
+    }
+
 out = {
     'month_meta': {'current_month': CUR, 'current_month_label': '2026年' + CUR,
                    'today': CUTOFF[CUR], 'cutoff': CUTOFF[CUR],
@@ -284,7 +375,7 @@ out = {
     'dimensions': {'sites': SITES, 'categories': CATS, 'layers': LAYERS},
     'sku_targets': SKU_TARGETS,
     'key_products': prev.get('key_products', []),
-    'ogsm_config': prev.get('ogsm_config', {'sections': []}),
+    'ogsm_config': build_ogsm_config(CUR),
     'strategies': prev.get('strategies', []), 'records': prev.get('records', []),
     'price_targets': prev.get('price_targets', {}), 'struct_targets': prev.get('struct_targets', {}),
     'stats': prev.get('stats', {}),
