@@ -136,7 +136,41 @@ async function loadData() {
     else normalizeOgsm(appData.ogsm_config);
     setupGlobalMonth();
     initFilters();
+    seedSampleReviews();
+    seedSampleFocus();
     switchPage('site', 'all');
+}
+function seedSampleReviews() {
+    const cfg = appData.ogsm_config; if (!cfg || !cfg.sections) return;
+    const weeks = ['第1周', '第2周', '第3周', '第4周'];
+    const tp = state.timeProgress, prog = A.total.target_progress, gap = A.total.gap;
+    const pc = c => fmtW(A.by_category[c].sales), pp = c => pct(A.by_category[c].target_progress), pm = c => pct(A.mom.by_category[c]);
+    const sampleBySection = [
+        { D: `本月截至${state.cutoff.slice(5)}完成销售额${fmtW(A.total.sales)}，目标进度${pct(prog)}%（时间进度${pct(tp)}%），${gap >= 0 ? '整体超前' : '整体滞后'}${fmtW(Math.abs(gap))}。分店铺中BV美、EU欧超前，AC美、UK英滞后约10万需重点追赶。`,
+          check: `落后主要来自AC美/UK英站点（均滞后约10万），渠道端独立站转化偏弱；类目端增大器进度仅${pp('增大器')}，需加大投放与活动力度，拉动爆款/超爆层单品起量。` },
+        { D: `飞机杯类目实际${pc('飞机杯')}，进度${pp('飞机杯')}，环比${pm('飞机杯')}%；增大器进度${pp('增大器')}%；龟头训练器基数小但环比${pm('龟头训练器')}%。`,
+          check: `增大器进度落后于时间进度，主因腰部品转化不足；建议对腰部TOP20单品做详情页信任背书+评价维护，提升转化3-5pct。` },
+        { D: `超爆层单量进度${pct(A.by_layer['超爆'].target_progress)}%、爆款层${pct(A.by_layer['爆款'].target_progress)}%、头部层${pct(A.by_layer['头部'].target_progress)}%；整体结构健康，超爆/爆款贡献主要销售额。`,
+          check: `腰部层转化率偏低（约${pct(A.by_layer['腰部'].conv * 100)}），为结构短板；建议将腰部中自然流量上涨的苗头品纳入重点孵化，复制爆款打法。` },
+        { D: `运营动作覆盖广告投放/活动报名/Listing优化等，投放端平均ROI约1.9；独立站与eBay渠道ROI偏低需优化素材与出价。`,
+          check: `投放动作中'活动报名'类有效率高，'站外引流'待观察；建议下月预算向高ROI的类目与站点倾斜，收缩低效渠道。` }
+    ];
+    weeks.forEach(wk => {
+        const key = 'ogsm_' + state.month + '_' + wk;
+        if (localStorage.getItem(key)) return;
+        const out = {};
+        cfg.sections.forEach((sec, i) => sec.metrics.forEach((m, j) => {
+            const sample = sampleBySection[i] || { D: '本周按目标正常推进，数据详见看板各板块。', check: '暂无显著偏差，持续监控分店铺/类目/分层进度。' };
+            out[i + '_' + j] = { D: sample.D, check: sample.check };
+        }));
+        try { localStorage.setItem(key, JSON.stringify(out)); } catch (e) {}
+    });
+}
+function seedSampleFocus() {
+    if (localStorage.getItem('focusConfig')) return;
+    const top = [...(appData.sku_master || [])].sort((a, b) => b.actual_orders - a.actual_orders).slice(0, 6)
+        .map(r => ({ code: r.ns_code, site: r.site }));
+    try { localStorage.setItem('focusConfig', JSON.stringify(top)); } catch (e) {}
 }
 
 function setupGlobalMonth() {
@@ -192,9 +226,9 @@ function switchPage(page, sub) {
     else if (page === 'product') renderProductLayer(sub);
     else if (page === 'operations' && sub === 'ops') renderOps();
     else if (page === 'operations' && sub === 'ads') renderAds();
-    else if (page === 'review' && sub === 'ogsms') {/* lazy */}
-    else if (page === 'review' && sub === 'monthly') {/* lazy */}
-    else if (page === 'strategy' && sub === 'gen') renderStrategyGen();
+    else if (page === 'review' && sub === 'ogsms') renderWeeklyReview();
+    else if (page === 'review' && sub === 'monthly') generateMonthlyReview();
+    else if (page === 'strategy' && sub === 'gen') generateStrategy();
     else if (page === 'strategy' && sub === 'lib') renderStrategyLib();
 }
 
@@ -339,8 +373,8 @@ function renderCategoryAll() {
         series: CATS.map((c, i) => ({ name: c, type: 'bar', data: SITES.map(s => (shop === '全部店铺' || shop === s) ? A.by_category[c].by_site[s].sales : 0), itemStyle: { color: Object.values(layerColor)[i], borderRadius: [4, 4, 0, 0] } })) });
 }
 function renderCategoryDetail(cat) {
-    const shop = document.getElementById('cat-detail-shop').value;
-    const layerF = document.getElementById('cat-detail-layer').value;
+    const shop = document.getElementById('cat-detail-shop').value || '全部店铺';
+    const layerF = document.getElementById('cat-detail-layer').value || '全部层级';
     const d = A.by_category[cat];
     // 从 sku_master 真实聚合(支持店铺/分层二次切分)
     const list = (appData.sku_master || []).filter(r => r.category === cat && (shop === '全部店铺' || r.site === shop) && (layerF === '全部层级' || r.layer === layerF));
@@ -393,8 +427,8 @@ function barOpt(cats, data, name, colorFn) {
  * 商品 - 全部 + 分层
  * =================================================================== */
 function renderProductAll() {
-    const shop = document.getElementById('product-shop').value;
-    const layerF = document.getElementById('product-layer').value;
+    const shop = document.getElementById('product-shop').value || '全部店铺';
+    const layerF = document.getElementById('product-layer').value || '全部层级';
     const list = (appData.sku_master || []).filter(r => (shop === '全部店铺' || r.site === shop) && (layerF === '全部层级' || r.layer === layerF));
     const pc = safeInit('product-structure-chart');
     pc.setOption(pieOpt(LAYERS.map(l => ({ name: l, value: list.filter(r => r.layer === l).reduce((s, r) => s + r.actual_sales, 0) })), '销售额'));
@@ -614,10 +648,12 @@ function initFilters() {
      'category-shop', 'cat-detail-shop', 'cat-detail-layer', 'product-shop', 'product-layer'].forEach(id => {
         const el = document.getElementById(id); if (el) el.onchange = () => rerender();
     });
+    const ow = document.getElementById('ogsms-week'); if (ow) ow.onchange = renderWeeklyReview;
+    const mm = document.getElementById('monthly-month'); if (mm) mm.onchange = generateMonthlyReview;
 }
 function renderOps() {
-    const period = document.getElementById('ops-period').value, month = document.getElementById('ops-month').value;
-    const owner = document.getElementById('ops-owner').value, cat = document.getElementById('ops-category').value;
+    const period = document.getElementById('ops-period').value, month = document.getElementById('ops-month').value || '全部';
+    const owner = document.getElementById('ops-owner').value || '全部', cat = document.getElementById('ops-category').value || '全部';
     let list = getOpsSample();
     if (month !== '全部') list = list.filter(r => r.month === month);
     if (owner !== '全部') list = list.filter(r => r.owner === owner);
@@ -628,7 +664,7 @@ function renderOps() {
          <td>${esc(r.desc)}</td><td><span class="tag tag-cyan">${r.status}</span></td><td>${r.effect}</td></tr>`).join('') || '<tr><td colspan="8">无数据</td></tr>';
 }
 function renderAds() {
-    const month = document.getElementById('ads-month').value, owner = document.getElementById('ads-owner').value, ch = document.getElementById('ads-channel').value;
+    const month = document.getElementById('ads-month').value || '全部', owner = document.getElementById('ads-owner').value || '全部', ch = document.getElementById('ads-channel').value || '全部';
     let list = getAdsSample();
     if (month !== '全部') list = list.filter(r => r.month === month);
     if (owner !== '全部') list = list.filter(r => r.owner === owner);
@@ -711,7 +747,7 @@ function closeOgsmConfig() { document.getElementById('ogsm-config-modal').style.
 function renderWeeklyReview() {
     const week = document.getElementById('ogsms-week').value;
     const saved = JSON.parse(localStorage.getItem('ogsm_' + state.month + '_' + week) || '{}');
-    let html = `<div style="margin-bottom:12px;font-size:13px;color:var(--radium-text-muted);">周期：${week} · 月份：${state.month}月 · 截止 ${state.cutoff.slice(5)}</div>`;
+    let html = `<div style="margin-bottom:12px;font-size:13px;color:var(--radium-text-muted);">周期：${week} · 月份：${state.month} · 截止 ${state.cutoff.slice(5)}</div>`;
     appData.ogsm_config.sections.forEach((sec, i) => {
         const metrics = sec.metrics || [];
         html += `<div class="ogsm-section" style="border:1px solid var(--radium-border);border-radius:12px;padding:16px;margin-bottom:16px;">
@@ -747,9 +783,9 @@ function copyOGSMContent() {
     navigator.clipboard.writeText(txt).then(() => alert('已复制周复盘内容'));
 }
 function generateMonthlyReview() {
-    const m = document.getElementById('monthly-month').value;
+    const m = document.getElementById('monthly-month').value || state.month;
     const a = appData.actuals[m]; const tgt = a.total.target_sales;
-    let html = `<h2 style="color:var(--radium-text-strong);">${m}月 月度复盘</h2>
+    let html = `<h2 style="color:var(--radium-text-strong);">${m} 月度复盘</h2>
         <p style="color:var(--radium-text-muted);">截止口径：${a.cutoff} ｜ 时间进度 ${pct(a.time_progress)} ｜ 达成率 ${a.attainment || '-'}%</p>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0;">
             ${card('总销售额', fmtW(a.total.sales), '', 'cyan')}
