@@ -366,6 +366,136 @@ def build_ogsm_config(month):
         ]
     }
 
+# ===================================================================
+# 单品周期真实数据（BV美：本周期 / 上周期 CSV）
+# ===================================================================
+import csv as _csv, re as _re
+
+CUR_CSV = '/Users/fsw/Downloads/商品-周期数据监控_本周期数据.csv'
+PREV_CSV = '/Users/fsw/Downloads/商品-周期数据监控_上周期数据.csv'
+PERIOD_SITE = 'BV美'
+PERIOD_CUR_LABEL = '本周期'
+PERIOD_PREV_LABEL = '上周期'
+
+# (字段键, 是否比率型：比率型差值用百分点pp，其它用相对%)
+FIELD_KEYS = [
+    ('sales', False), ('avg_price', False), ('conv', True), ('visits', False),
+    ('add_cart', False), ('buy_now', False), ('bundle', False), ('cart_rate', True),
+    ('checkout_rate', True), ('orders', False), ('qty', False), ('dwell_sec', False),
+    ('uv', False), ('entry_uv', False), ('bounce', True), ('exit_rate', True),
+    ('age_days', False),
+]
+
+def _dec(s):
+    s = (s or '').strip().replace(',', '')
+    if s == '' or s is None:
+        return 0.0
+    try:
+        return float(s)
+    except Exception:
+        return 0.0
+
+def _clean(s):
+    s = (s or '')
+    # 导出瑕疵：&amp; 或被写成 &amp, 均按 & 解码
+    s = _re.sub(r'&amp[;,]?', '&', s)
+    s = s.replace('&quot;', '"').replace('&lt;', '<').replace('&gt;', '>')
+    return s.strip()
+
+def _dwell(s):
+    s = (s or '').strip()
+    m = _re.match(r'(\d+):(\d+):(\d+)', s)
+    if m:
+        return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
+    return int(_dec(s))
+
+def _read_period(path):
+    d = {}
+    if not os.path.exists(path):
+        print('CSV 未找到:', path)
+        return d
+    with open(path, encoding='utf-8-sig') as f:
+        rd = _csv.DictReader(f)
+        for row in rd:
+            sku = _clean(row.get('货号'))
+            if not sku:
+                continue
+            d[sku] = {
+                'id': int(_dec(row.get('ID')) or 0),
+                'sku': sku,
+                'name': _clean(row.get('商品名称')),
+                'category': _clean(row.get('分类')),
+                'sales': _dec(row.get('总销售')),
+                'avg_price': _dec(row.get('均价')),
+                'conv': _dec(row.get('转化率')),
+                'visits': int(_dec(row.get('访问次数')) or 0),
+                'add_cart': int(_dec(row.get('加入购物车')) or 0),
+                'buy_now': int(_dec(row.get('立即购买')) or 0),
+                'bundle': int(_dec(row.get('搭配购买')) or 0),
+                'cart_rate': _dec(row.get('加购率')),
+                'checkout_rate': _dec(row.get('结账成功率')),
+                'orders': int(_dec(row.get('总单量')) or 0),
+                'qty': int(_dec(row.get('总数量')) or 0),
+                'dwell_sec': _dwell(row.get('停留时间(秒)')),
+                'uv': int(_dec(row.get('唯一访客')) or 0),
+                'entry_uv': int(_dec(row.get('入口UV')) or 0),
+                'bounce': _dec(row.get('跳出率')),
+                'exit_rate': _dec(row.get('退出率')),
+                'age_days': int(_dec(row.get('上架天数')) or 0),
+            }
+    return d
+
+def _mk_delta(cur, prev):
+    out = {}
+    for key, is_rate in FIELD_KEYS:
+        cv = cur.get(key, 0)
+        pv = prev.get(key, 0) if prev else 0
+        if is_rate:
+            d = cv - pv
+            rel = None
+        else:
+            d = cv - pv
+            rel = (cv - pv) / pv * 100 if pv else None
+        out[key] = {'cur': cv, 'prev': pv, 'abs': d, 'rel': rel, 'is_rate': is_rate}
+    return out
+
+def build_sku_period():
+    cur = _read_period(CUR_CSV)
+    prev = _read_period(PREV_CSV)
+    skus = {}
+    matched = 0
+    for sku, c in cur.items():
+        p = prev.get(sku)
+        if p:
+            matched += 1
+        skus[sku] = {
+            'id': c['id'], 'sku': sku, 'name': c['name'], 'category': c['category'],
+            'current': c, 'previous': p, 'delta': _mk_delta(c, p),
+        }
+    # 按分类聚合（用于周期监控概览）
+    by_cat = {}
+    for s in skus.values():
+        cat = s['category'] or '未分类'
+        bc = by_cat.setdefault(cat, {'cur': defaultdict(float), 'prev': defaultdict(float), 'count': 0})
+        bc['count'] += 1
+        for key, _ in FIELD_KEYS:
+            bc['cur'][key] += s['current'].get(key, 0)
+            if s['previous']:
+                bc['prev'][key] += s['previous'].get(key, 0)
+    by_cat_out = {}
+    for cat, bc in by_cat.items():
+        by_cat_out[cat] = {
+            'count': bc['count'],
+            'current': dict(bc['cur']), 'previous': dict(bc['prev']),
+            'delta': _mk_delta(dict(bc['cur']), dict(bc['prev'])),
+        }
+    print('sku_period:', PERIOD_SITE, '本周期', len(cur), '上周期', len(prev), '匹配', matched)
+    return {
+        'site': PERIOD_SITE, 'period_current': PERIOD_CUR_LABEL, 'period_prev': PERIOD_PREV_LABEL,
+        'sku_count': len(skus), 'matched': matched,
+        'skus': skus, 'by_category': by_cat_out,
+    }
+
 out = {
     'month_meta': {'current_month': CUR, 'current_month_label': '2026年' + CUR,
                    'today': CUTOFF[CUR], 'cutoff': CUTOFF[CUR],
@@ -374,6 +504,7 @@ out = {
     'sku_master': sku_master_cur, 'channels': CHANNELS,
     'dimensions': {'sites': SITES, 'categories': CATS, 'layers': LAYERS},
     'sku_targets': SKU_TARGETS,
+    'sku_period': build_sku_period(),
     'key_products': prev.get('key_products', []),
     'ogsm_config': build_ogsm_config(CUR),
     'strategies': prev.get('strategies', []), 'records': prev.get('records', []),

@@ -49,6 +49,38 @@ function card(title, value, sub, tone) {
         <div class="stat-card-sub">${sub || ''}</div></div>`;
 }
 
+/* 单品周期对比辅助：比率型差值用百分点(pp)，其它用相对% */
+function fmtDur(sec) {
+    sec = Math.round(sec || 0);
+    if (sec < 60) return sec + '秒';
+    const m = Math.floor(sec / 60), s = sec % 60;
+    if (m < 60) return m + '分' + (s ? s + '秒' : '');
+    const h = Math.floor(m / 60);
+    return h + '时' + (m % 60) + '分';
+}
+function deltaTag(f) {
+    if (!f) return '<span class="tag">—</span>';
+    if (f.is_rate) {
+        const up = f.abs >= 0;
+        return `<span class="tag tag-${up ? 'green' : 'red'}">${up ? '▲ +' : '▼ '}${f.abs.toFixed(1)}pct</span>`;
+    }
+    if (f.rel == null) return '<span class="tag">—</span>';
+    const up = f.rel >= 0;
+    return `<span class="tag tag-${up ? 'green' : 'red'}">${up ? '▲ +' : '▼ '}${f.rel.toFixed(1)}%</span>`;
+}
+function deltaSub(f, key) {
+    if (!f) return '';
+    if (f.is_rate) { const up = f.abs >= 0; return (up ? '▲ +' : '▼ ') + f.abs.toFixed(1) + 'pct'; }
+    if (f.rel == null) return '环比 —';
+    const up = f.rel >= 0; return (up ? '▲ +' : '▼ ') + f.rel.toFixed(1) + '%';
+}
+function deltaTone(f, key) {
+    if (!f) return '';
+    let up = f.is_rate ? (f.abs >= 0) : (f.rel == null ? false : f.rel >= 0);
+    if (key === 'bounce' || key === 'exit_rate') up = !up; // 跳出/退出率升高为劣
+    return up ? 'green' : 'red';
+}
+
 /* 目标对照总览 Hero —— 对标 OGSM 周复盘「目标」写法：
    目标额 / 完成额 / 时间进度 / 目标进度(完成进度) / 超前滞后 / 预估全月完成率+缺口 + 进度条时间刻度
    o: {scope:'销售额'|'单量', target, actual, orders?, aov?, mom?, momLabel?, title, meta?} */
@@ -159,9 +191,17 @@ function seedSampleReviews() {
 }
 function seedSampleFocus() {
     if (localStorage.getItem('focusConfig')) return;
-    const top = [...(appData.sku_master || [])].sort((a, b) => b.actual_orders - a.actual_orders).slice(0, 6)
+    let cfg = [];
+    const rp = appData.sku_period;
+    if (rp && rp.skus) {
+        const top = Object.values(rp.skus).sort((a, b) => b.current.sales - a.current.sales).slice(0, 6)
+            .map(s => ({ code: s.sku, site: rp.site }));
+        cfg = cfg.concat(top);
+    }
+    const demoTop = [...(appData.sku_master || [])].sort((a, b) => b.actual_orders - a.actual_orders).slice(0, 4)
         .map(r => ({ code: r.ns_code, site: r.site }));
-    try { localStorage.setItem('focusConfig', JSON.stringify(top)); } catch (e) {}
+    cfg = cfg.concat(demoTop);
+    try { localStorage.setItem('focusConfig', JSON.stringify(cfg)); } catch (e) {}
 }
 
 function setupGlobalMonth() {
@@ -480,6 +520,9 @@ function renderProductLayer(layer) {
  * 单品深度下钻
  * =================================================================== */
 function openSkuModal(code, site) {
+    const rp = appData.sku_period;
+    const realR = rp && rp.skus ? rp.skus[code] : null;
+    if (realR) { renderRealSkuModal(realR, rp); return; }
     const r = (appData.sku_index || {})[code + '|' + site];
     if (!r) { alert('未找到该单品数据'); return; }
     document.getElementById('sku-modal').style.display = 'flex';
@@ -497,12 +540,63 @@ function openSkuModal(code, site) {
         card('超前/滞后', (Math.round(r.actual_orders - r.target_orders * tpProg / 100) >= 0 ? '+' : '') + num(Math.round(r.actual_orders - r.target_orders * tpProg / 100)), '单量口径', Math.round(r.actual_orders - r.target_orders * tpProg / 100) >= 0 ? 'green' : 'red');
     document.getElementById('sku-modal-extra').innerHTML =
         `<div style="font-size:12px;color:var(--radium-text-muted);">渠道：${r.channel} ｜ 备注：${esc(r.remark) || '—'}</div>`;
+    const st = document.getElementById('sku-series-title'); if (st) st.textContent = '📈 近 11 周单量走势（本周期）';
     const sc = safeInit('sku-series-chart');
     const ser = r.series || [];
     sc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 50, right: 20, top: 20, bottom: 40 },
         xAxis: { type: 'category', data: ser.map(s => s.date), axisLabel: { color: '#94a3b8', rotate: 45 } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8' } },
         series: [{ type: 'line', smooth: true, data: ser.map(s => s.qty), areaStyle: { opacity: 0.15 }, itemStyle: { color: '#22d3ee' }, lineStyle: { width: 2 } }] });
+}
+function renderRealSkuModal(s, rp) {
+    document.getElementById('sku-modal').style.display = 'flex';
+    document.getElementById('sku-modal-title').textContent = '📦 ' + s.sku + ' · ' + rp.site;
+    const c = s.current, dl = s.delta;
+    let m = '';
+    m += card('本周期销售额', money(c.sales), '均价 ' + money(c.avg_price), 'cyan');
+    m += card('总单量', num(c.orders), '总数量 ' + num(c.qty), 'blue');
+    m += card('转化率', pct(c.conv), deltaSub(dl.conv, 'conv'), deltaTone(dl.conv, 'conv'));
+    m += card('加购率', pct(c.cart_rate), deltaSub(dl.cart_rate, 'cart_rate'), deltaTone(dl.cart_rate, 'cart_rate'));
+    m += card('结账成功率', pct(c.checkout_rate), deltaSub(dl.checkout_rate, 'checkout_rate'), deltaTone(dl.checkout_rate, 'checkout_rate'));
+    m += card('访问次数', num(c.visits), deltaSub(dl.visits, 'visits'), deltaTone(dl.visits, 'visits'));
+    m += card('唯一访客', num(c.uv), '入口UV ' + num(c.entry_uv), '');
+    m += card('加购数', num(c.add_cart), '立即购 ' + num(c.buy_now) + ' / 搭配 ' + num(c.bundle), '');
+    m += card('停留时间', fmtDur(c.dwell_sec), '上架 ' + num(c.age_days) + ' 天', '');
+    m += card('跳出率', pct(c.bounce), deltaSub(dl.bounce, 'bounce'), deltaTone(dl.bounce, 'bounce'));
+    m += card('退出率', pct(c.exit_rate), deltaSub(dl.exit_rate, 'exit_rate'), deltaTone(dl.exit_rate, 'exit_rate'));
+    document.getElementById('sku-modal-metrics').innerHTML = m;
+    let ex = `<div style="font-size:12px;color:var(--radium-text-muted);margin-bottom:10px;">货号 ${esc(s.sku)} · ${rp.site} · ${esc(s.category)} ｜ <b>${esc(rp.period_current)}</b> vs <b>${esc(rp.period_prev)}</b>（逐字段环比）</div>`;
+    if (s.previous) {
+        ex += `<table class="period-delta-table"><thead><tr><th>指标</th><th>${esc(rp.period_current)}</th><th>${esc(rp.period_prev)}</th><th>变化</th></tr></thead><tbody>`;
+        const rows = [
+            ['总销售', dl.sales, money], ['总单量', dl.orders, num], ['转化率', dl.conv, pct],
+            ['加购率', dl.cart_rate, pct], ['结账成功率', dl.checkout_rate, pct],
+            ['访问次数', dl.visits, num], ['加购数', dl.add_cart, num], ['唯一访客', dl.uv, num],
+        ];
+        rows.forEach(function (rw) {
+            const label = rw[0], f = rw[1], fmt = rw[2];
+            ex += `<tr><td>${label}</td><td>${fmt(f.cur)}</td><td>${fmt(f.prev)}</td><td>${deltaTag(f)}</td></tr>`;
+        });
+        ex += `</tbody></table>`;
+    } else {
+        ex += `<div class="empty-state-desc">本周期数据，无上一周期对照</div>`;
+    }
+    document.getElementById('sku-modal-extra').innerHTML = ex;
+    const st = document.getElementById('sku-series-title'); if (st) st.textContent = '🔻 转化漏斗：访问 → 加购 → 下单';
+    const fc = safeInit('sku-series-chart');
+    if (fc) {
+        fc.setOption({
+            tooltip: { trigger: 'item', formatter: '{b}: {c}' },
+            series: [{ type: 'funnel', left: '12%', right: '12%', top: 30, bottom: 10,
+                minSize: '20%', maxSize: '100%',
+                label: { color: '#e2e8f0', formatter: '{b}\n{c}' },
+                data: [
+                    { value: c.visits, name: '访问', itemStyle: { color: '#22d3ee' } },
+                    { value: c.add_cart, name: '加购', itemStyle: { color: '#6366f1' } },
+                    { value: c.orders, name: '下单', itemStyle: { color: '#fb7185' } },
+                ] }]
+        });
+    }
 }
 function closeSkuModal() { document.getElementById('sku-modal').style.display = 'none'; }
 
@@ -519,36 +613,57 @@ function renderProductFocus() {
             <div class="empty-state-desc">点击"重点单品配置"，搜索并勾选需要监控的 SKU（支持按预估TopN批量选）</div></div>`;
         return;
     }
+    const rp = appData.sku_period;
     const start = state.focusCycle.start, end = state.focusCycle.end;
     const cycDays = Math.max(1, (new Date(end) - new Date(start)) / 86400000 + 1);
     let html = `<div class="filter-bar" style="margin-bottom:16px;">
-        <div class="filter-group"><span class="filter-label">监控周期</span>
+        <div class="filter-group"><span class="filter-label">监控周期(自定义)</span>
             <input type="date" class="filter-select" id="focus-start" value="${start}" onchange="updateFocusCycle()" style="width:auto;"></div>
         <div class="filter-group"><span class="filter-label">至</span>
             <input type="date" class="filter-select" id="focus-end" value="${end}" onchange="updateFocusCycle()" style="width:auto;"></div>
         <span style="font-size:12px;color:var(--radium-text-muted);align-self:center;">共 ${cycDays} 天 · 周期目标 = 月度目标 × (${cycDays}/${A_days()})</span>
+        <span style="font-size:12px;color:var(--radium-accent-cyan);align-self:center;margin-left:8px;">· BV美真实单品按「本周期 vs 上周期」对比</span>
     </div><div class="grid-2">`;
     cfg.forEach(item => {
-        const r = (appData.sku_index || {})[item.code + '|' + item.site];
-        if (!r) return;
-        const partTarget = Math.round((r.target_orders || 0) * cycDays / A_days());
-        const prog = partTarget ? (r.actual_orders / partTarget * 100) : 0;
-        const lead = r.actual_orders - partTarget;
-        html += `<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;">
-                <div class="card-title">${esc(item.code)}</div><span class="tag tag-cyan">${r.site}</span></div>
-            <div class="card-body">
-                <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
-                    <div>类目：${r.category} · ${r.layer}</div><div>负责人：${esc(r.owner)}</div>
-                    <div>周期目标单量：<b>${num(partTarget)}</b></div><div>实际单量：<b>${num(r.actual_orders)}</b></div>
-                    <div>进度：<span class="tag tag-${cls(prog, 100)}">${pct(prog)}</span></div>
-                    <div>超前/滞后：<span class="tag tag-${lead >= 0 ? 'green' : 'red'}">${lead >= 0 ? '+' : ''}${num(lead)}</span></div>
-                    <div>转化率：${pct(r.conv * 100)}</div><div>本周期销售额：${fmtW(r.actual_sales)}</div>
-                </div>
-                <div style="margin-top:10px;text-align:right;"><button class="btn btn-mini" onclick="openSkuModal('${esc(item.code)}','${item.site}')">深度</button></div>
-            </div></div>`;
+        const realR = rp && rp.skus ? rp.skus[item.code] : null;
+        if (realR) html += focusRealCard(realR, rp);
+        else html += focusDemoCard(item, cycDays);
     });
     html += '</div>';
     box.innerHTML = html;
+}
+function focusDemoCard(item, cycDays) {
+    const r = (appData.sku_index || {})[item.code + '|' + item.site];
+    if (!r) return '';
+    const partTarget = Math.round((r.target_orders || 0) * cycDays / A_days());
+    const prog = partTarget ? (r.actual_orders / partTarget * 100) : 0;
+    const lead = r.actual_orders - partTarget;
+    return `<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;">
+            <div class="card-title">${esc(item.code)}</div><span class="tag tag-cyan">${r.site}</span></div>
+        <div class="card-body">
+            <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+                <div>类目：${r.category} · ${r.layer}</div><div>负责人：${esc(r.owner)}</div>
+                <div>周期目标单量：<b>${num(partTarget)}</b></div><div>实际单量：<b>${num(r.actual_orders)}</b></div>
+                <div>进度：<span class="tag tag-${cls(prog, 100)}">${pct(prog)}</span></div>
+                <div>超前/滞后：<span class="tag tag-${lead >= 0 ? 'green' : 'red'}">${lead >= 0 ? '+' : ''}${num(lead)}</span></div>
+                <div>转化率：${pct(r.conv * 100)}</div><div>本周期销售额：${fmtW(r.actual_sales)}</div>
+            </div>
+            <div style="margin-top:10px;text-align:right;"><button class="btn btn-mini" onclick="openSkuModal('${esc(item.code)}','${item.site}')">深度</button></div>
+        </div></div>`;
+}
+function focusRealCard(s, rp) {
+    const c = s.current, p = s.previous, dl = s.delta;
+    const body = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">
+        <div>类目：${esc(s.category)}</div><div><span class="tag tag-cyan">${rp.site}·真实</span></div>
+        <div>本周期销售额：<b>${money(c.sales)}</b></div><div>上周期：${p ? money(p.sales) : '—'}</div>
+        <div>销售额变化：${deltaTag(dl.sales)}</div><div>本周期单量：<b>${num(c.orders)}</b></div>
+        <div>转化率：${pct(c.conv)} ${deltaTag(dl.conv)}</div><div>加购率：${pct(c.cart_rate)} ${deltaTag(dl.cart_rate)}</div>
+        <div>访问次数：${num(c.visits)} ${deltaTag(dl.visits)}</div><div>结账成功率：${pct(c.checkout_rate)} ${deltaTag(dl.checkout_rate)}</div>
+    </div>
+    <div style="margin-top:10px;text-align:right;"><button class="btn btn-mini" onclick="openSkuModal('${esc(s.sku)}','${rp.site}')">深度</button></div>`;
+    return `<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;">
+        <div class="card-title" title="${esc(s.name)}">${esc(s.sku)}</div><span class="tag tag-cyan">${rp.site}</span></div>
+        <div class="card-body">${body}</div></div>`;
 }
 function A_days() { return (A && A.days_in_month) || 31; }
 function updateFocusCycle() {
@@ -561,18 +676,25 @@ function openFocusConfig() {
     renderFocusConfigList();
 }
 function closeFocusConfig() { document.getElementById('focus-product-modal').style.display = 'none'; }
+function focusPool() {
+    const demo = (appData.sku_master || []).map(r => ({ code: r.ns_code, site: r.site, category: r.category, layer: r.layer, target: r.target_orders, actual: r.actual_orders }));
+    const rp = appData.sku_period;
+    const real = rp ? Object.values(rp.skus).map(s => ({ code: s.sku, site: rp.site, category: s.category, layer: '真实', target: 0, actual: s.current ? s.current.orders : 0 })) : [];
+    return demo.concat(real);
+}
 function renderFocusConfigList() {
     const q = (document.getElementById('focus-search').value || '').trim().toLowerCase();
     const cfg = getFocusConfig() || [];
-    const list = (appData.sku_master || []).filter(r => !q || (r.ns_code + r.site + r.category).toLowerCase().includes(q));
-    list.sort((a, b) => b.actual_orders - a.actual_orders);
+    const list = focusPool().filter(r => !q || (r.code + r.site + r.category).toLowerCase().includes(q));
+    list.sort((a, b) => b.actual - a.actual);
     const sel = new Set(cfg.map(c => c.code + '|' + c.site));
     let rows = '';
-    list.slice(0, 120).forEach(r => {
-        const checked = sel.has(r.ns_code + '|' + r.site) ? 'checked' : '';
-        rows += `<tr><td><input type="checkbox" data-code="${esc(r.ns_code)}" data-site="${r.site}" ${checked}></td>
-            <td>${esc(r.ns_code)}</td><td>${r.site}</td><td>${r.category}</td><td>${r.layer}</td>
-            <td class="num">${num(r.target_orders)}</td><td class="num">${num(r.actual_orders)}</td></tr>`;
+    list.slice(0, 160).forEach(r => {
+        const checked = sel.has(r.code + '|' + r.site) ? 'checked' : '';
+        const tag = r.layer === '真实' ? ' <span class="tag tag-cyan">真实</span>' : '';
+        rows += `<tr><td><input type="checkbox" data-code="${esc(r.code)}" data-site="${esc(r.site)}" ${checked}></td>
+            <td>${esc(r.code)}</td><td>${r.site}</td><td>${esc(r.category)}</td><td>${esc(r.layer)}${tag}</td>
+            <td class="num">${num(r.target)}</td><td class="num">${num(r.actual)}</td></tr>`;
     });
     document.getElementById('focus-product-config').innerHTML = `<div style="overflow:auto;max-height:55vh;"><table class="data-table">
         <thead><tr><th></th><th>货号</th><th>站点</th><th>类目</th><th>定位</th><th class="num">目标</th><th class="num">实际</th></tr></thead>

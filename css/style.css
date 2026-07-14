@@ -474,6 +474,26 @@ body::after {
     border-collapse: collapse;
 }
 
+.period-delta-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 4px;
+}
+.period-delta-table th {
+    text-align: left;
+    padding: 7px 10px;
+    font-weight: 600;
+    color: var(--radium-text-muted);
+    border-bottom: 1px solid var(--radium-border);
+}
+.period-delta-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--radium-border);
+    color: var(--radium-text-primary);
+}
+.period-delta-table tr:last-child td { border-bottom: none; }
+
 .data-table th {
     text-align: left;
     padding: 12px 16px;
