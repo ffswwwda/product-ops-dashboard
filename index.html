@@ -256,8 +256,7 @@
         <!-- ============ OGSM 周复盘 ============ -->
         <section id="page-review-ogsms" class="page-section" style="display:none;">
             <div class="page-header"><div><h1 class="page-title">OGSM 周复盘 / 7月计划</h1>
-                <p class="page-subtitle">「真实OGSM」为商品部7月飞机杯实际计划与周进度；「生成周复盘」为模板工具（按看板数据自动填D/检查）</p></div>
-                <div class="page-actions"><button class="btn btn-secondary" onclick="openOgsmConfig()">编辑OGSM配置</button></div></div>
+                <p class="page-subtitle">「真实OGSM」为商品部7月飞机杯实际计划与周进度（CSV直填）；「生成周复盘」驱动真实7月OGSM逐行解析目标，自动计算完成进度与检查项</p></div>
             <div style="display:flex;gap:8px;margin-bottom:16px;">
                 <button class="ogsm-tab active" id="ogsm-tab-real" onclick="switchOgsmTab('real')">真实OGSM（7月）</button>
                 <button class="ogsm-tab" id="ogsm-tab-gen" onclick="switchOgsmTab('gen')">生成周复盘（模板）</button>
@@ -275,8 +274,8 @@
             </div>
             <!-- 生成周复盘 -->
             <div id="ogsms-gen-wrap" style="display:none;">
-                <div class="card"><div class="card-header"><div class="card-title">OGSM周复盘（模板）</div>
-                    <div class="card-subtitle">每周填写；同周再次保存覆盖；部分单品追踪用其独立周期</div></div>
+                <div class="card"><div class="card-header"><div class="card-title">生成周复盘（驱动真实7月OGSM）</div>
+                    <div class="card-subtitle">逐行解析真实OGSM目标值，前端实时计算完成进度与交叉检查项；可编辑D/检查并存本地</div></div>
                     <div class="card-body" style="padding:20px;">
                         <div class="filter-bar" style="margin-bottom:20px;">
                             <div class="filter-group"><span class="filter-label">选择周期</span>

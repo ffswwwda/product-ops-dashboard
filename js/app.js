@@ -181,11 +181,12 @@ function seedSampleReviews() {
         const key = 'ogsm_' + state.month + '_' + wk;
         if (localStorage.getItem(key)) return;
         const out = {};
-        cfg.sections.forEach((sec, i) => {
-            const id = sec.id || i;
-            const computed = computeOgsmData(sec);
-            const d = `完成${fmtOgsmValue(computed.actual, computed.unit)}，目标${fmtOgsmValue(computed.target, computed.unit)}，进度${pct(computed.progress)}，${computed.status}${Math.abs(computed.gapPct).toFixed(1)}%`;
-            const check = buildOgsmCheck(sec, computed);
+        const o = appData.ogsm_july;
+        if (o && o.rows) o.rows.forEach((r, i) => {
+            const id = 'r' + i;
+            const computed = computeOgsmFromRow(r);
+            const d = '完成' + (computed.ok ? fmtOgsmValue(computed.actual, computed.unit) : '—') + '，目标' + (computed.ok ? fmtOgsmValue(computed.target, computed.unit) : '定性') + '，进度' + (computed.ok ? pct(computed.progress) : '—') + (computed.ok ? '，' + computed.status + Math.abs(computed.gapPct).toFixed(1) + '%' : '');
+            const check = buildOgsmCheck(r, computed);
             out[id] = { D: d, check: check };
         });
         try { localStorage.setItem(key, JSON.stringify(out)); } catch (e) {}
@@ -1158,139 +1159,166 @@ function fmtOgsmValue(v, unit) {
     if (unit === 'percent') return pct(v);
     return num(v);
 }
-function computeOgsmData(sec) {
-    const a = A;
-    const type = sec.measure_type || 'manual';
-    const key = sec.measure_key || '';
-    let actual = 0, target = 0, unit = 'money';
-    if (type === 'total_sales') {
-        actual = a.total.sales || 0;
-        target = sec.target_value || a.total.target_sales || 0;
-    } else if (type === 'total_orders') {
-        actual = a.total.orders || 0;
-        target = sec.target_value || a.total.target_orders || 0; unit = 'number';
-    } else if (type === 'site_sales') {
-        const d = a.by_site[key || sec.shop] || {};
-        actual = d.sales || 0; target = sec.target_value || d.target_sales || 0;
-    } else if (type === 'site_orders') {
-        const d = a.by_site[key || sec.shop] || {};
-        actual = d.orders || 0; target = sec.target_value || 0; unit = 'number';
-    } else if (type === 'category_sales') {
-        const d = a.by_category[key] || {};
-        actual = d.sales || 0; target = sec.target_value || d.target_sales || 0;
-    } else if (type === 'category_orders') {
-        const d = a.by_category[key] || {};
-        actual = d.orders || 0; target = sec.target_value || d.target_orders || 0; unit = 'number';
-    } else if (type === 'layer_orders') {
-        const d = a.by_layer[key] || {};
-        actual = d.orders || 0; target = sec.target_value || d.target_orders || 0; unit = 'number';
-    } else if (type === 'channel_sales') {
-        const site = a.by_site[sec.shop] || {};
-        const ch = (site.channels || {})[key] || {};
-        actual = ch.sales || 0; target = sec.target_value || 0;
-    } else {
-        actual = sec.actual_value || 0; target = sec.target_value || 0; unit = 'number';
-    }
-    const progress = target ? actual / target * 100 : 0;
+/* ---------- OGSM 生成周复盘：驱动真实 7月 OGSM ---------- */
+// 落地店铺字段(英文) -> 站点键
+function mapOgsmShops(field) {
+    const m = { 'AC-US': 'AC美', 'BV-US': 'BV美', 'BV-UK': 'UK英', 'EU': 'EU欧' };
+    if (!field) return SITES.slice();
+    if (field.indexOf('全站') >= 0) return SITES.slice();
+    const out = [];
+    field.split(',').forEach(p => { const k = m[p.trim()]; if (k) out.push(k); });
+    return out.length ? out : SITES.slice();
+}
+// 从真实 OGSM 行的 目标/衡量 解析可量化指标
+function parseOgsmRow(row) {
+    const text = (row['目标'] || '') + '\n' + (row['衡量'] || '');
+    const shops = mapOgsmShops(row['落地店铺']);
+    let cat = null;
+    if (text.indexOf('飞机杯') >= 0) cat = '飞机杯';
+    else if (text.indexOf('增大器') >= 0) cat = '增大器';
+    let metric = 'sales', target = 0, ok = false;
+    const mConv = text.match(/转化率[^\d]*(\d+(?:\.\d+)?)\s*%/);
+    const mOrd = text.match(/单量[^\d]*(\d+(?:\.\d+)?)/);
+    const mSales = text.match(/目标[：:]\s*([\d,]+(?:\.\d+)?)/);
+    if (mConv) { metric = 'conv'; target = parseFloat(mConv[1]); ok = true; }
+    else if (mOrd) { metric = 'orders'; target = parseFloat(mOrd[1]); ok = true; }
+    else if (mSales) { metric = 'sales'; target = parseFloat(mSales[1].replace(/,/g, '')); ok = true; }
+    return { ok, metric, target, cat, shops };
+}
+// 取站点×类目 交叉实际（来自站点/类目汇总，当前为合成值）
+function _ogsmCross(shops, cat, kind) {
+    const a = A; let v = 0;
+    shops.forEach(s => {
+        if (cat) { const d = ((a.by_category[cat] || {}).by_site || {})[s] || {}; v += (d[kind] || 0); }
+        else { v += ((a.by_site[s] || {})[kind] || 0); }
+    });
+    return v;
+}
+function getWeightedConv(shops, cat) {
+    let w = 0, c = 0;
+    (appData.sku_master || []).forEach(s => {
+        if (shops.indexOf(s.site) < 0) return;
+        if (cat && s.category !== cat) return;
+        const o = s.actual_orders || 0; c += o * (s.conv || 0); w += o;
+    });
+    return w ? c / w : 0;
+}
+function computeOgsmFromRow(row) {
+    const p = parseOgsmRow(row);
+    if (!p.ok) return { ok: false, shops: p.shops, cat: p.cat };
     const tp = state.timeProgress;
-    const expected = target * tp / 100;
-    const gap = actual - expected;
+    let actual = 0, unit = 'money';
+    if (p.metric === 'sales') { actual = _ogsmCross(p.shops, p.cat, 'sales'); }
+    else if (p.metric === 'orders') { actual = _ogsmCross(p.shops, p.cat, 'orders'); unit = 'number'; }
+    else if (p.metric === 'conv') { actual = getWeightedConv(p.shops, p.cat); unit = 'pct'; }
+    const target = p.target;
+    const progress = target ? actual / target * 100 : 0;
     const gapPct = progress - tp;
     const status = gapPct >= 0 ? '超前' : '滞后';
-    return { actual, target, progress, gap, gapPct, status, unit, type, key };
+    return { ok: true, metric: p.metric, cat: p.cat, shops: p.shops, actual, target, progress, gapPct, status, unit, source: '合成(站点汇总)' };
 }
-function buildOgsmCheck(sec, data) {
+function buildOgsmCheck(row, data) {
+    if (!data.ok) {
+        const w = row.weeks[0] || {};
+        return '定性目标（上架/质检/协同等），无可量化数值目标；团队周报状态：' + (w.status || '—') + '。检查：' + (w.check || '无');
+    }
     const tp = state.timeProgress;
-    if (data.progress >= 100 || data.gapPct >= 0) {
-        return '整体进度达标/超前，按当前节奏推进即可。';
+    if (data.progress >= 100 || data.gapPct >= 0) return '进度达标/超前（' + pct(data.progress) + ' vs 时间进度' + tp + '%），按当前节奏推进即可。';
+    const a = A; let parts = [];
+    const siteParts = data.shops.map(s => {
+        const d = a.by_site[s] || {};
+        const lag = (d.gap < 0) ? '低于时间进度' : '(达标)';
+        return s + fmtW(d.sales) + '/目标' + fmtW(d.target_sales) + lag;
+    });
+    parts.push('按站点：' + siteParts.join('、') + '。');
+    if (data.cat) {
+        const d = a.by_category[data.cat] || {};
+        const catParts = data.shops.map(s => { const v = ((d.by_site || {})[s] || {}); return s + fmtW(v.sales || 0); });
+        parts.push('类目[' + data.cat + ']按站点：' + catParts.join('、') + '。');
+        const layerParts = LAYERS.map(l => { const v = ((d.layers || {})[l] || {}); return l + fmtW(v.sales || 0); }).filter(x => !x.endsWith('0'));
+        if (layerParts.length) parts.push('按分层：' + layerParts.join('、') + '；腰部/尾部贡献偏弱需拉升。');
     }
-    const a = A;
-    let parts = [];
-    if (data.type === 'total_sales') {
-        const lagging = SITES.map(s => ({ s, d: a.by_site[s] })).filter(x => x.d.gap < 0).sort((a, b) => a.d.gap - b.d.gap);
-        if (lagging.length) parts.push(`按站点拆解：${lagging.map(x => `${x.s}(${fmtW(x.d.sales)}/${fmtW(x.d.target_sales)})`).join('、')} 低于时间进度。`);
-        const catLag = CATS.map(c => ({ c, d: a.by_category[c] })).filter(x => x.d.gap < 0).sort((a, b) => a.d.gap - b.d.gap);
-        if (catLag.length) parts.push(`按类目拆解：${catLag.map(x => `${x.c}进度${pct(x.d.target_progress)}`).join('、')} 为主要缺口。`);
-    } else if (data.type === 'site_sales') {
-        const site = data.key || sec.shop;
-        const d = a.by_site[site] || {};
-        const total = d.sales || 1;
-        const chParts = CHANNELS.map(ch => {
-            const v = (d.channels || {})[ch] || {};
-            return `${ch}${fmtW(v.sales || 0)}(${(v.sales / total * 100).toFixed(1)}%)`;
-        }).join('、');
-        parts.push(`按渠道拆解：${chParts}；占比偏低渠道需优化素材与出价。`);
-        const catParts = CATS.map(c => ({ c, v: (d.categories || {})[c] || {} })).filter(x => x.v.sales).map(x => `${x.c}${fmtW(x.v.sales)}`).join('、');
-        if (catParts) parts.push(`按类目拆解：${catParts}。`);
-    } else if (data.type === 'category_sales') {
-        const cat = data.key;
-        const d = a.by_category[cat] || {};
-        const siteParts = SITES.map(s => ({ s, v: (d.by_site || {})[s] || {} })).filter(x => x.v.sales).map(x => `${x.s}${fmtW(x.v.sales)}`).join('、');
-        if (siteParts) parts.push(`按站点拆解：${siteParts}。`);
-        const layerParts = LAYERS.map(l => ({ l, v: (d.layers || {})[l] || {} })).filter(x => x.v.sales).map(x => `${x.l}${fmtW(x.v.sales)}`).join('、');
-        if (layerParts) parts.push(`按分层拆解：${layerParts}；腰部层贡献偏弱需重点拉升。`);
-    } else if (data.type === 'manual') {
-        return `进度${pct(data.progress)}；按${sec.shop || '全部'}口径持续推进，达成细节需结合${sec.measurement || '衡量指标'}实际完成情况。`;
+    if (data.shops.length === 1) {
+        const s = data.shops[0]; const d = a.by_site[s] || {}; const tot = d.sales || 1;
+        const chParts = CHANNELS.map(ch => { const v = (d.channels || {})[ch] || {}; return ch + fmtW(v.sales || 0) + '(' + (v.sales / tot * 100).toFixed(1) + '%)'; }).filter(x => !x.includes('(0.0%)'));
+        if (chParts.length) parts.push('按渠道：' + chParts.join('、') + '；占比偏低渠道需优化素材与出价。');
     }
-    if (!parts.length) return '整体进度正常，暂无显著偏差。';
+    parts.push('实际值口径：站点/类目汇总为合成值（周期CSV仅用于单品周期监控），故进度为合成口径，待真实周期数据对齐规模后替换。');
     return parts.join(' ') + ' 建议：聚焦滞后维度，加大投放/优化转化，确保全月目标达成。';
 }
 function autoFillWeeklyReview() {
-    appData.ogsm_config.sections.forEach((sec, i) => {
-        const key = sec.id || i;
-        const computed = computeOgsmData(sec);
-        const dEl = document.getElementById('d_' + key);
-        const cEl = document.getElementById('c_' + key);
-        if (dEl) dEl.value = `完成${fmtOgsmValue(computed.actual, computed.unit)}，目标${fmtOgsmValue(computed.target, computed.unit)}，进度${pct(computed.progress)}，${computed.status}${Math.abs(computed.gapPct).toFixed(1)}%`;
-        if (cEl) cEl.value = buildOgsmCheck(sec, computed);
+    const o = appData.ogsm_july; if (!o || !o.rows) return;
+    o.rows.forEach((r, i) => {
+        const key = 'r' + i; const data = computeOgsmFromRow(r);
+        const dEl = document.getElementById('d_' + key), cEl = document.getElementById('c_' + key);
+        const defD = '完成' + (data.ok ? fmtOgsmValue(data.actual, data.unit) : '—') + '，目标' + (data.ok ? fmtOgsmValue(data.target, data.unit) : '定性') + '，进度' + (data.ok ? pct(data.progress) : '—') + (data.ok ? '，' + data.status + Math.abs(data.gapPct).toFixed(1) + '%' : '');
+        if (dEl) dEl.value = defD;
+        if (cEl) cEl.value = buildOgsmCheck(r, data);
     });
+    alert('已根据真实 7月OGSM 自动填写完成D与检查（可继续编辑）');
 }
 function renderWeeklyReview() {
     const week = document.getElementById('ogsms-week').value;
+    const o = appData.ogsm_july;
+    const box = document.getElementById('ogsms-report');
+    if (!o || !o.rows || !o.rows.length) {
+        box.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">暂无真实OGSM数据</div><div class="empty-state-desc">需将「商品部 26年-7月OGSM」CSV 放入 data/ 目录后重新生成</div></div>';
+        return;
+    }
     const saved = JSON.parse(localStorage.getItem('ogsm_' + state.month + '_' + week) || '{}');
-    let html = `<div style="margin-bottom:12px;font-size:13px;color:var(--radium-text-muted);">周期：${week} · 月份：${state.month} · 截止 ${state.cutoff.slice(5)}</div>
-        <table class="data-table ogsm-table">
-        <thead><tr>
-            <th style="min-width:110px;">板块</th>
-            <th style="min-width:120px;">目的</th>
-            <th style="min-width:100px;">目标</th>
-            <th style="min-width:130px;">策略</th>
-            <th style="min-width:80px;">衡量</th>
-            <th style="min-width:100px;">计划</th>
-            <th style="min-width:70px;">店铺</th>
-            <th style="min-width:70px;">责任人</th>
-            <th style="min-width:200px;">完成D</th>
-            <th style="min-width:220px;">检查</th>
+    let html = `<div style="margin-bottom:12px;font-size:13px;color:var(--radium-text-muted);">根据真实 7月OGSM（${esc(o.meta.source || '')}）逐行生成完成进度与检查项 ｜ 周期：${esc(week)} ｜ 截止 ${state.cutoff.slice(5)} ｜ 时间进度 ${state.timeProgress}%</div>
+        <table class="data-table ogsm-table"><thead><tr>
+            <th style="min-width:80px;">板块</th><th style="min-width:100px;">目的</th><th style="min-width:150px;">目标(原文)</th>
+            <th style="min-width:84px;">店铺</th><th style="min-width:70px;">责任人</th>
+            <th style="min-width:90px;">解析目标</th><th style="min-width:120px;">实际(来源)</th>
+            <th style="min-width:84px;">完成进度</th><th style="min-width:70px;">状态</th>
+            <th style="min-width:260px;">检查项(系统生成)</th>
+            <th style="min-width:200px;">完成D(可编辑)</th><th style="min-width:200px;">检查(可编辑)</th>
         </tr></thead><tbody>`;
-    appData.ogsm_config.sections.forEach((sec, i) => {
-        const key = sec.id || i;
+    o.rows.forEach((r, i) => {
+        const key = 'r' + i;
+        const data = computeOgsmFromRow(r);
         const sv = saved[key] || {};
-        const computed = computeOgsmData(sec);
-        const defaultD = `完成${fmtOgsmValue(computed.actual, computed.unit)}，目标${fmtOgsmValue(computed.target, computed.unit)}，进度${pct(computed.progress)}，${computed.status}${Math.abs(computed.gapPct).toFixed(1)}%`;
-        const defaultCheck = buildOgsmCheck(sec, computed);
-        const d = sv.D || defaultD;
-        const c = sv.check || defaultCheck;
+        let targetTxt, actualTxt, progTxt, statusHtml, checkTxt;
+        if (!data.ok) {
+            targetTxt = '定性'; actualTxt = '—'; progTxt = '—';
+            statusHtml = ogsmStatusTag((r.weeks[0] || {}).status || '—');
+            checkTxt = buildOgsmCheck(r, data);
+        } else {
+            targetTxt = fmtOgsmValue(data.target, data.unit) + (data.cat ? '<br><span style="color:var(--radium-text-muted);font-size:11px;">' + data.cat + '</span>' : '');
+            actualTxt = fmtOgsmValue(data.actual, data.unit) + ' <span class="tag tag-yellow">合成</span>';
+            progTxt = '<b>' + pct(data.progress) + '</b>';
+            statusHtml = ogsmStatusTag(data.status) + ' ' + Math.abs(data.gapPct).toFixed(1) + '%';
+            checkTxt = buildOgsmCheck(r, data);
+        }
+        const defD = '完成' + (data.ok ? fmtOgsmValue(data.actual, data.unit) : '—') + '，目标' + (data.ok ? fmtOgsmValue(data.target, data.unit) : '定性') + '，进度' + (data.ok ? pct(data.progress) : '—') + (data.ok ? '，' + data.status + Math.abs(data.gapPct).toFixed(1) + '%' : '');
+        const defC = checkTxt;
+        const d = sv.D || defD;
+        const c = sv.check || defC;
         html += `<tr>
-            <td><b>${esc(sec.name)}</b></td>
-            <td>${esc(sec.objective)}</td>
-            <td>${esc(sec.goal)}</td>
-            <td>${esc(sec.strategy)}</td>
-            <td>${esc(sec.measurement)}</td>
-            <td>${esc(sec.plan)}</td>
-            <td>${esc(sec.shop)}</td>
-            <td>${esc(sec.owner)}</td>
-            <td><textarea class="filter-select" id="d_${key}" style="width:100%;min-height:70px;">${esc(d)}</textarea></td>
-            <td><textarea class="filter-select" id="c_${key}" style="width:100%;min-height:70px;">${esc(c)}</textarea></td>
+            <td><b>${esc(r['板块'] || '—')}</b></td>
+            <td style="white-space:pre-wrap;">${esc(r['目的'])}</td>
+            <td style="white-space:pre-wrap;max-width:160px;">${esc(r['目标'])}</td>
+            <td>${esc(r['落地店铺'])}</td>
+            <td>${esc(r['责任人'])}</td>
+            <td>${targetTxt}</td>
+            <td>${actualTxt}</td>
+            <td>${progTxt}</td>
+            <td>${statusHtml}</td>
+            <td style="white-space:pre-wrap;max-width:260px;">${esc(checkTxt)}</td>
+            <td><textarea class="filter-select" id="d_${key}" style="width:100%;min-height:64px;">${esc(d)}</textarea></td>
+            <td><textarea class="filter-select" id="c_${key}" style="width:100%;min-height:64px;">${esc(c)}</textarea></td>
         </tr>`;
     });
     html += `</tbody></table>`;
-    document.getElementById('ogsms-report').innerHTML = html;
+    box.innerHTML = html;
 }
 function saveWeeklyReview() {
     const week = document.getElementById('ogsms-week').value;
+    const o = appData.ogsm_july; if (!o || !o.rows) return;
     const out = {};
-    appData.ogsm_config.sections.forEach((sec, i) => {
-        const key = sec.id || i;
+    o.rows.forEach((r, i) => {
+        const key = 'r' + i;
         out[key] = { D: (document.getElementById('d_' + key) || {}).value || '', check: (document.getElementById('c_' + key) || {}).value || '' };
     });
     localStorage.setItem('ogsm_' + state.month + '_' + week, JSON.stringify(out));
@@ -1300,7 +1328,7 @@ function copyOGSMContent() {
     const txt = document.getElementById('ogsms-report').innerText;
     navigator.clipboard.writeText(txt).then(() => alert('已复制周复盘内容'));
 }
-/* ---------- 真实 OGSM（7月，飞机杯）---------- */
+
 function switchOgsmTab(tab) {
     const real = tab === 'real';
     document.getElementById('ogsm-tab-real').classList.toggle('active', real);
@@ -1351,6 +1379,7 @@ function renderOgsmReal() {
     html += `</tbody></table>`;
     box.innerHTML = html;
 }
+
 function copyOgsmReal() {
     const txt = document.getElementById('ogsms-real').innerText;
     navigator.clipboard.writeText(txt).then(() => alert('已复制真实OGSM内容'));
@@ -1672,17 +1701,18 @@ const DERIVATIONS = {
   },
   'review|ogsms': {
     title: 'OGSM 周复盘', badge: 'mixed', method: 'combined',
-    source: '真实OGSM：data/ogsm_july_raw.csv（真源）-> CSV原文直填，无计算。生成周复盘：配置(localStorage可编辑) + 预聚合actuals。',
+    source: '目标/计划/周进度：真实OGSM CSV（data/ogsm_july_raw.csv，真源）-> build_data.py -> data.json -> 前端直显。完成进度/检查项：前端据真实OGSM逐行解析目标值，结合预聚合actuals计算（actuals当前为合成值，待真实周期数据对齐规模后替换）。',
     metrics: [
       { n: '真实OGSM 56行', m: 'source', f: 'CSV->build_data.py->data.json->前端直显（无计算）' },
       { n: '状态颜色', m: 'frontend', f: '文本->颜色映射(滞后红/超前绿/正常青/未开始黄)' },
-      { n: '生成-进度', m: 'frontend', f: 'computeOgsmData: actual/target x 100（从data.json取actual）' },
+      { n: '生成-解析目标', m: 'frontend', f: 'parseOgsmRow: 从目标/衡量正则提取指标(销售额/单量/转化率)+数值+类目+店铺' },
+      { n: '生成-完成进度', m: 'frontend', f: 'computeOgsmFromRow: actual/target x 100（actual取自站点×类目交叉汇总）' },
       { n: '生成-状态', m: 'frontend', f: '进度-时间进度(>=0超前/<0滞后)' },
       { n: '生成-检查(交叉分析)', m: 'frontend', f: 'buildOgsmCheck: 按站点/类目/分层/渠道交叉拆解缺口' },
-      { n: 'D/检查填写', m: 'source', f: '用户手动输入->localStorage' }
+      { n: 'D/检查填写', m: 'source', f: '系统生成预填->用户可编辑->localStorage' }
     ],
-    note: '生成周复盘的进度/状态/检查全部前端实时计算，是交叉分析的典型示例。',
-    code: 'build_data.py::build_ogsm_july；app.js::computeOgsmData / buildOgsmCheck / renderOgsmReal'
+    note: '生成周复盘现已「驱动真实7月OGSM」：每行目标来自真实计划，进度/检查由前端实时计算。注意：actuals(站点/类目汇总)当前为合成值，进度为合成口径；周期CSV仅用于单品周期监控（真值）。',
+    code: 'build_data.py::build_ogsm_july；app.js::parseOgsmRow / computeOgsmFromRow / buildOgsmCheck / renderWeeklyReview'
   },
   'review|monthly': {
     title: '月度复盘', badge: 'mixed', method: 'frontend',
