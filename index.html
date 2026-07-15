@@ -54,6 +54,10 @@
         <div class="sidebar-nav-item" data-page="product" data-sub="尾部">尾部商品</div>
         <div class="sidebar-nav-item" data-page="product" data-sub="focus">重点单品监控</div>
 
+        <div class="sidebar-section-title">对比分析</div>
+        <div class="sidebar-nav-item" data-page="process" data-sub="all">分站点过程数据对比</div>
+        <div class="sidebar-nav-item" data-page="channel" data-sub="all">分站点出单渠道变化</div>
+
         <div class="sidebar-section-title">运营/投放动作</div>
         <div class="sidebar-nav-item" data-page="operations" data-sub="ops">运营动作</div>
         <div class="sidebar-nav-item" data-page="operations" data-sub="ads">投放动作</div>
@@ -112,16 +116,16 @@
                 <div class="card"><div class="card-header"><div class="card-title">商品分层（销售 / 单量）</div><div class="card-subtitle">点击分层查看该层单品</div></div><div class="card-body"><div id="shop-layer-chart" style="height:280px;"></div></div></div>
             </div>
             <div class="card" style="margin-top:20px;">
-                <div class="card-header"><div class="card-title">渠道 / 类目 / 分层 明细（销售额 + 单量）</div></div>
+                <div class="card-header"><div class="card-title">渠道 / 类目 / 分层 明细（销售额 + 单量 + SKU数量 + 客单价 + 转化率）</div></div>
                 <div class="card-body"><table class="data-table">
-                    <thead><tr><th>维度</th><th>细分</th><th class="num">销售额</th><th class="num">单量</th><th class="num">占本店比</th></tr></thead>
+                    <thead><tr><th>维度</th><th>细分</th><th class="num">销售额</th><th class="num">销售额占比</th><th class="num">单量</th><th class="num">单量占比</th><th class="num">SKU数量</th><th class="num">客单价</th><th class="num">转化率</th></tr></thead>
                     <tbody id="shop-breakdown-table"></tbody></table></div>
             </div>
-            <div class="card" style="margin-top:20px;">
+                <div class="card" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">分层下钻 · 单品列表（点击单品看本周期深度）</div>
                     <div class="card-subtitle" id="shop-layer-hint">选择上方分层图查看该层单品</div></div>
                 <div class="card-body"><table class="data-table">
-                    <thead><tr><th>货号</th><th>类目</th><th>定位</th><th>变化</th><th>负责人</th><th class="num">目标单量</th><th class="num">实际单量</th><th class="num">进度</th><th>操作</th></tr></thead>
+                    <thead><tr><th>NS货号</th><th>类目</th><th>商品负责人</th><th>变化类型</th><th class="num">目标单量</th><th>预估定位</th><th class="num">当前目标单量</th><th class="num">当前实际单量</th><th>当前定位</th><th class="num">单量偏差</th><th class="num">完成率</th><th class="num">进度偏差</th><th>操作</th></tr></thead>
                     <tbody id="shop-sku-table"></tbody></table></div>
             </div>
         </section>
@@ -253,6 +257,46 @@
                 <tbody id="ads-table-body"></tbody></table></div></div>
         </section>
 
+        <!-- ============ 分站点过程数据对比 ============ -->
+        <section id="page-process-all" class="page-section" style="display:none;">
+            <div class="page-header"><div><h1 class="page-title">分站点过程数据对比</h1>
+                <p class="page-subtitle">本周期 vs 上周期 · 单品过程数据变化（销售额、均价、UV、加购、转化、跳出率等）</p></div></div>
+            <div class="filter-bar">
+                <div class="filter-group"><span class="filter-label">对比周期</span>
+                    <select class="filter-select" id="process-period"><option value="cur">本周期 vs 上周期</option><option value="custom">自定义周期（占位）</option></select></div>
+                <div class="filter-group"><span class="filter-label">站点</span>
+                    <select class="filter-select" id="process-shop"><option value="all">全部站点</option><option value="AC美">AC美</option><option value="BV美">BV美（真实）</option><option value="UK英">UK英</option><option value="EU欧">欧洲总站</option></select></div>
+            </div>
+            <div class="card" style="margin-top:12px;">
+                <div class="card-header"><div class="card-title">过程指标对比表</div><div class="card-subtitle">BV美为真实本/上周期CSV；其余站点为示例数据，待上传真实周期CSV后替换</div></div>
+                <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
+                    <thead><tr><th>站点</th><th class="num">销售额</th><th class="num">销售额环比</th><th class="num">均价</th><th class="num">唯一访客</th><th class="num">加购人数</th><th class="num">加购率</th><th class="num">立即购买</th><th class="num">单量</th><th class="num">结账成功率</th><th class="num">转化率</th><th class="num">停留时间</th><th class="num">跳出率</th></tr></thead>
+                    <tbody id="process-compare-body"></tbody></table></div></div>
+            </div>
+        </section>
+
+        <!-- ============ 分站点出单渠道变化 ============ -->
+        <section id="page-channel-all" class="page-section" style="display:none;">
+            <div class="page-header"><div><h1 class="page-title">分站点出单渠道变化</h1>
+                <p class="page-subtitle">本周期 vs 上周期 · 分站点/分渠道单量与销售额变化</p></div></div>
+            <div class="filter-bar">
+                <div class="filter-group"><span class="filter-label">对比周期</span>
+                    <select class="filter-select" id="channel-period"><option value="cur">本周期 vs 上周期</option><option value="custom">自定义周期（占位）</option></select></div>
+                <div class="filter-group"><span class="filter-label">站点</span>
+                    <select class="filter-select" id="channel-shop"><option value="all">全部站点</option><option value="AC美">AC美</option><option value="BV美">BV美（真实）</option><option value="UK英">UK英</option><option value="EU欧">欧洲总站</option></select></div>
+            </div>
+            <div class="grid-2" style="margin-top:12px;">
+                <div class="card"><div class="card-header"><div class="card-title">渠道单量变化</div></div><div class="card-body"><div id="channel-change-chart" style="height:320px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">渠道销售额变化</div></div><div class="card-body"><div id="channel-sales-chart" style="height:320px;"></div></div></div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header"><div class="card-title">渠道变化明细</div><div class="card-subtitle">BV美为真实本/上周期CSV拆分；其余站点为示例数据</div></div>
+                <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
+                    <thead><tr><th>站点</th><th>渠道</th><th class="num">本周期单量</th><th class="num">上周期单量</th><th class="num">单量变化</th><th class="num">本周期销售额</th><th class="num">上周期销售额</th><th class="num">销售额变化</th></tr></thead>
+                    <tbody id="channel-change-body"></tbody></table></div></div>
+            </div>
+        </section>
+
         <!-- ============ OGSM 周复盘 ============ -->
         <section id="page-review-ogsms" class="page-section" style="display:none;">
             <div class="page-header"><div><h1 class="page-title">OGSM 周复盘 / 7月计划</h1>
@@ -378,6 +422,7 @@
             <div id="sku-modal-metrics" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;"></div>
             <div id="sku-modal-extra" style="margin-bottom:16px;"></div>
             <div class="card" id="sku-series-card"><div class="card-header"><div class="card-title" id="sku-series-title">近 11 周单量走势（本周期）</div></div><div class="card-body"><div id="sku-series-chart" style="height:240px;"></div></div></div>
+            <div id="sku-modal-deep" class="deep-section"></div>
             <div id="sku-modal-actions" class="deep-section"></div>
             <div id="sku-modal-suggest" class="deep-section"></div>
             <div id="sku-modal-related" class="deep-section"></div>

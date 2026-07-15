@@ -83,8 +83,8 @@ function deltaTone(f, key) {
 }
 
 /* 目标对照总览 Hero —— 对标 OGSM 周复盘「目标」写法：
-   目标额 / 完成额 / 时间进度 / 目标进度(完成进度) / 超前滞后 / 预估全月完成率+缺口 + 进度条时间刻度
-   o: {scope:'销售额'|'单量', target, actual, orders?, aov?, mom?, momLabel?, title, meta?} */
+   目标额 / 完成额 / 时间进度 / 目标进度(完成进度) / 超前滞后 / 预估全月完成率+缺口 / 客单价 / 转化率 + 进度条时间刻度
+   o: {scope:'销售额'|'单量', target, actual, orders?, aov?, conv?, mom?, momLabel?, title, meta?} */
 function targetHeroHTML(o) {
     const scope = o.scope || '销售额';
     const target = o.target || 0, actual = o.actual || 0;
@@ -98,6 +98,11 @@ function targetHeroHTML(o) {
     const status = cls(rate, tp);                        // pos / warn / neg
     const hi = rate > 100 ? 100 : rate;
     const momTxt = (o.mom != null) ? `${pct(o.mom)}` : '';
+    const convHtml = (o.conv != null) ? `<div class="th-card k-conv">
+          <div class="th-label">转化率</div>
+          <div class="th-num">${pct(o.conv * 100)}</div>
+          <div class="th-sub">${scope === '销售额' && o.aov != null ? '客单价 ' + money(o.aov) : '按订单加权'}</div>
+        </div>` : '';
     return `<div class="target-hero">
       <div class="th-head">
         <span class="th-title">${esc(o.title || '目标对照总览')}</span>
@@ -124,6 +129,7 @@ function targetHeroHTML(o) {
           <div class="th-num">${pct(estRate)}</div>
           <div class="th-sub">预估全月 ${fmt(estFull)} · ${gap >= 0 ? '盈余 ' : '缺口 '}${fmt(Math.abs(gap))}</div>
         </div>
+        ${convHtml}
       </div>
       <div class="th-progress-wrap">
         <div class="th-progress">
@@ -244,6 +250,7 @@ function switchPage(page, sub) {
     document.querySelectorAll('.sidebar-nav-item').forEach(x => x.classList.toggle('active', x.dataset.page === page && x.dataset.sub === (sub || 'all')));
     const map = { site: { all: 'page-site-all', _: 'page-site-detail' }, category: { all: 'page-category-all', _: 'page-category-detail' },
         product: { all: 'page-product-all', focus: 'page-product-focus', _: 'page-product-layer' },
+        process: { all: 'page-process-all' }, channel: { all: 'page-channel-all' },
         operations: { ops: 'page-operations-ops', ads: 'page-operations-ads' },
         review: { ogsms: 'page-review-ogsms', monthly: 'page-review-monthly' },
         strategy: { gen: 'page-strategy-gen', lib: 'page-strategy-lib' } };
@@ -258,6 +265,8 @@ function switchPage(page, sub) {
     else if (page === 'product' && sub === 'all') renderProductAll();
     else if (page === 'product' && sub === 'focus') renderProductFocus();
     else if (page === 'product') renderProductLayer(sub);
+    else if (page === 'process') renderProcessCompare();
+    else if (page === 'channel') renderChannelChange();
     else if (page === 'operations' && sub === 'ops') renderOps();
     else if (page === 'operations' && sub === 'ads') renderAds();
     else if (page === 'review' && sub === 'ogsms') switchOgsmTab('real');
@@ -326,9 +335,9 @@ function renderSiteDetail(site) {
     const d = A.by_site[site];
     document.getElementById('shop-detail-title').textContent = site + ' 店铺深度分析';
     document.getElementById('shop-detail-cards').innerHTML = targetHeroHTML({
-        scope: '销售额', target: d.target_sales, actual: d.sales, orders: d.orders, aov: d.aov,
+        scope: '销售额', target: d.target_sales, actual: d.sales, orders: d.orders, aov: d.aov, conv: d.conv,
         mom: A.mom.by_site[site], momLabel: '当月环比', title: site + ' · 目标对照总览',
-        meta: `目标进度 ${pct(d.target_progress)}`
+        meta: `目标进度 ${pct(d.target_progress)} · SKU ${num(d.sku_count)}`
     });
     // 渠道(双轴)
     shopLayerChart = null;
@@ -339,7 +348,16 @@ function renderSiteDetail(site) {
     cac.setOption(dualBar(CATS, CATS.map(c => d.categories[c].sales), CATS.map(c => d.categories[c].orders), '销售额', '单量'));
     // 分层(可点击)
     const lac = safeInit('shop-layer-chart');
-    lac.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 60, right: 50, top: 30, bottom: 30 },
+    lac.setOption({ tooltip: { trigger: 'axis', formatter: p => {
+        const name = p[0].name;
+        const sales = p.find(x => x.seriesName === '销售额')?.value || 0;
+        const orders = p.find(x => x.seriesName === '单量')?.value || 0;
+        const skus = d.layers[name].sku_count || 0;
+        return `<div style="font-weight:600">${esc(name)}</div>` +
+            `<div>销售额：${fmtW(sales)}</div>` +
+            `<div>单量：${num(orders)}</div>` +
+            `<div>SKU数量：${num(skus)}</div>`;
+    } }, grid: { left: 60, right: 50, top: 30, bottom: 30 },
         xAxis: { type: 'category', data: LAYERS, axisLabel: { color: '#94a3b8' } },
         yAxis: [{ type: 'value', name: '销售额', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
                 { type: 'value', name: '单量', axisLabel: { color: '#94a3b8' } }],
@@ -348,29 +366,37 @@ function renderSiteDetail(site) {
     lac.off('click'); lac.on('click', p => { state.shopLayer = p.name; renderShopSkuTable(site); document.getElementById('shop-layer-hint').textContent = '当前分层：' + p.name + '（点击其它层可切换）'; });
     // 明细表
     let rows = '';
-    CHANNELS.forEach(c => { const v = d.channels[c]; rows += brkRow('渠道', c, rint(v.sales), rint(v.orders), d.sales); });
-    CATS.forEach(c => { const v = d.categories[c]; rows += brkRow('类目', c, v.sales, v.orders, d.sales); });
-    LAYERS.forEach(l => { const v = d.layers[l]; rows += brkRow('分层', l, v.sales, v.orders, d.sales); });
+    CHANNELS.forEach(c => { const v = d.channels[c]; rows += brkRow('渠道', c, rint(v.sales), rint(v.orders), d.sales, d.orders, v.sku_count, v.aov, v.conv); });
+    CATS.forEach(c => { const v = d.categories[c]; rows += brkRow('类目', c, v.sales, v.orders, d.sales, d.orders, v.sku_count, v.aov, v.conv); });
+    LAYERS.forEach(l => { const v = d.layers[l]; rows += brkRow('分层', l, v.sales, v.orders, d.sales, d.orders, v.sku_count, v.aov, v.conv); });
     document.getElementById('shop-breakdown-table').innerHTML = rows;
     document.getElementById('shop-layer-hint').textContent = '点击上方分层图查看该层单品';
     renderShopSkuTable(site);
 }
-function brkRow(dim, name, sales, orders, total) {
-    const share = total ? (sales / total * 100).toFixed(1) : 0;
-    return `<tr><td>${dim}</td><td>${name}</td><td class="num">${fmtW(sales)}</td><td class="num">${num(orders)}</td><td class="num">${share}%</td></tr>`;
+function brkRow(dim, name, sales, orders, totalSales, totalOrders, sku_count, aov, conv) {
+    const salesShare = totalSales ? (sales / totalSales * 100).toFixed(1) : 0;
+    const orderShare = totalOrders ? (orders / totalOrders * 100).toFixed(1) : 0;
+    return `<tr><td>${dim}</td><td>${name}</td><td class="num">${fmtW(sales)}</td><td class="num">${salesShare}%</td><td class="num">${num(orders)}</td><td class="num">${orderShare}%</td><td class="num">${num(sku_count || 0)}</td><td class="num">${money(aov || 0)}</td><td class="num">${pct((conv || 0) * 100)}</td></tr>`;
 }
 function renderShopSkuTable(site) {
     const list = (appData.sku_master || []).filter(r => r.site === site && (state.shopLayer === 'all' || r.layer === state.shopLayer));
     list.sort((a, b) => b.actual_orders - a.actual_orders);
+    const tp = state.timeProgress;
     let rows = '';
     list.slice(0, 60).forEach(r => {
-        const prog = r.target_orders ? (r.actual_orders / r.target_orders * 100) : 0;
-        rows += `<tr><td>${esc(r.ns_code)}</td><td>${r.category}</td><td>${r.layer}</td><td>${r.change_type}</td><td>${esc(r.owner)}</td>
-            <td class="num">${num(r.target_orders)}</td><td class="num">${num(r.actual_orders)}</td>
-            <td class="num"><span class="tag tag-${cls(prog)}">${pct(prog)}</span></td>
-            <td><button class="btn btn-mini" onclick="openSkuModal('${esc(r.ns_code)}','${r.site}')">深度</button></td></tr>`;
+        const currentTarget = Math.round(r.target_orders * tp / 100);
+        const lead = r.actual_orders - currentTarget;
+        const completion = r.target_orders ? (r.actual_orders / r.target_orders * 100) : 0;
+        const progressGap = completion - tp;
+        rows += `<tr><td>${esc(r.ns_code)}</td><td>${r.category}</td><td>${esc(r.owner)}</td><td>${r.change_type}</td>` +
+            `<td class="num">${num(r.target_orders)}</td><td>${r.est_layer || r.layer}</td>` +
+            `<td class="num">${num(currentTarget)}</td><td class="num">${num(r.actual_orders)}</td><td>${r.layer}</td>` +
+            `<td class="num"><span class="tag tag-${lead >= 0 ? 'green' : 'red'}">${lead >= 0 ? '+' : ''}${num(lead)}</span></td>` +
+            `<td class="num"><span class="tag tag-${cls(completion)}">${pct(completion)}</span></td>` +
+            `<td class="num"><span class="tag tag-${progressGap >= 0 ? 'green' : 'red'}">${progressGap >= 0 ? '+' : ''}${progressGap.toFixed(1)}%</span></td>` +
+            `<td><button class="btn btn-mini" onclick="openSkuModal('${esc(r.ns_code)}','${r.site}')">深度</button></td></tr>`;
     });
-    document.getElementById('shop-sku-table').innerHTML = rows || '<tr><td colspan="9">无数据</td></tr>';
+    document.getElementById('shop-sku-table').innerHTML = rows || '<tr><td colspan="13">无数据</td></tr>';
 }
 function dualBar(cats, salesArr, orderArr, sName, oName, colorFn) {
     const rotate = cats.length > 5 ? 30 : 0;
@@ -769,12 +795,48 @@ function buildSuggestions(ctx, catAvg) {
     const summary = `${esc(ctx.name || ctx.sku)}（${esc(ctx.category)}）本周期销售额 ${money(c.sales)}、转化率 ${pct(c.conv)}、访客 ${c.uv != null ? num(c.uv) : '—'}，整体${trendWord}；客单价 ${money(c.avg_price)}，加购率 ${c.cart_rate != null ? pct(c.cart_rate) : '—'}、结账成功率 ${c.checkout_rate != null ? pct(c.checkout_rate) : '—'}。`;
     return { summary: summary, bullets: bullets };
 }
+function buildDeepAnalysisHTML(ctx) {
+    const c = ctx.current, tgt = ctx.target_orders || 0, orders = c.orders != null ? c.orders : 0;
+    const tp = state.timeProgress;
+    const completion = tgt ? orders / tgt * 100 : 0;
+    const progressGap = completion - tp;
+    const leadOrders = Math.round(orders - tgt * tp / 100);
+    let html = '<h4>单品深入分析 <span class="pill link" onclick="openDerivation(\'sku-deep\',\'deep\')" title="查看来源与判定逻辑">目标/进度/环比</span></h4>';
+    html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;">';
+    html += card('目标单量', num(tgt), ctx.kind === 'real' ? '来自 sku_master' : '目标单量', 'blue');
+    html += card('实际单量', num(orders), '截止 ' + state.cutoff.slice(5), 'cyan');
+    html += card('完成率', pct(completion), `时间进度 ${pct(tp)}`, progressGap >= 0 ? 'green' : 'red');
+    html += card('进度偏差', (progressGap >= 0 ? '+' : '') + progressGap.toFixed(1) + '%', '单量偏差 ' + (leadOrders >= 0 ? '+' : '') + leadOrders, progressGap >= 0 ? 'green' : 'red');
+    html += '</div>';
+    // 环比诊断
+    if (ctx.delta && ctx.delta.sales) {
+        const d = ctx.delta;
+        html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px;">';
+        html += card('销售额环比', deltaTag(d.sales), deltaSub(d.sales, 'sales'), deltaTone(d.sales, 'sales'));
+        html += card('单量环比', deltaTag(d.orders), deltaSub(d.orders, 'orders'), deltaTone(d.orders, 'orders'));
+        html += card('转化率环比', deltaTag(d.conv), deltaSub(d.conv, 'conv'), deltaTone(d.conv, 'conv'));
+        html += '</div>';
+    }
+    // 诊断文字
+    html += '<div class="suggest-summary">';
+    if (progressGap >= 0) {
+        html += `本品目标单量 ${num(tgt)}，实际 ${num(orders)}，完成率 ${pct(completion)}（超前时间进度 ${pct(tp)} ${progressGap.toFixed(1)}%）。建议保持节奏，关注供给与转化稳定性。`;
+    } else {
+        html += `本品目标单量 ${num(tgt)}，实际 ${num(orders)}，完成率 ${pct(completion)}（滞后时间进度 ${pct(tp)} ${Math.abs(progressGap).toFixed(1)}%），缺口约 ${Math.abs(leadOrders)} 单。建议重点排查流量来源、转化漏斗、价格竞争力。`;
+    }
+    html += '</div>';
+    return html;
+}
+
 // 渲染三大板块到弹窗
 function renderSkuDeep(ctx) {
     const pool = ctx.kind === 'real' ? realPool() : demoPool(ctx.site);
     const rel = relatedProducts(ctx, pool);
     const ogsm = matchOgsmActions(ctx);
     const sug = buildSuggestions(ctx, rel.catAvg);
+
+    // —— 0 深入分析 ——
+    const deepEl = document.getElementById('sku-modal-deep'); if (deepEl) deepEl.innerHTML = buildDeepAnalysisHTML(ctx);
 
     // —— ① 运营动作 ——
     let a = '<h4>运营动作 <span class="pill link" onclick="openDerivation(\'sku-deep\',\'actions\')" title="查看来源与判定逻辑">2 类来源</span></h4>';
@@ -830,9 +892,11 @@ function renderSkuDeep(ctx) {
 }
 // 由真实单品构建 ctx
 function buildRealCtx(s, rp) {
+    const master = (appData.sku_master || []).find(r => r.ns_code === s.sku && r.site === rp.site) || {};
     return {
         kind: 'real', sku: s.sku, name: s.name, category: s.category, site: rp.site,
         current: s.current, delta: s.delta, previous: s.previous,
+        target_orders: master.target_orders || 0,
         sellingPoints: extractSellingPoints((s.name || '') + ' ' + (s.category || '')),
         realActions: s.real_actions || [],
     };
@@ -844,6 +908,7 @@ function buildDemoCtx(r, code, site) {
         current: { sales: r.actual_sales, avg_price: r.aov, conv: r.conv, uv: null,
                    bounce: null, cart_rate: null, checkout_rate: null, orders: r.actual_orders },
         delta: null, previous: null,
+        target_orders: r.target_orders || 0,
         sellingPoints: extractSellingPoints(r.category || ''),
         realActions: [],
     };
@@ -967,6 +1032,161 @@ function saveFocusProducts() {
 }
 
 /* ===================================================================
+ * 新增：分站点过程数据对比 + 分站点出单渠道变化
+ * =================================================================== */
+// 所有站点键：4主站 + 欧洲分站（示例数据占位）
+const PROCESS_SITES = ['AC美', 'BV美', 'UK英', 'EU欧', 'SH-DE', 'SH-FR', 'AC-德国', 'AC-法国', 'AC-荷兰', 'AC-西班牙', 'AC-意大利'];
+const EU_SUBS = ['SH-DE', 'SH-FR', 'AC-德国', 'AC-法国', 'AC-荷兰', 'AC-西班牙', 'AC-意大利'];
+
+function _hashFloat(s, salt, min, max) {
+    const h = Math.abs((s + salt).split('').reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 1000000, 0));
+    return min + (h % 1000) / 1000 * (max - min);
+}
+
+function synthProcessData(site, period) {
+    // period: 'cur' 或 'prev'，影响噪声方向
+    const d = A.by_site[site] || { sales: 0, orders: 0, conv: 0, aov: 0 };
+    const orders = Math.max(0, d.orders + (period === 'prev' ? -Math.round(d.orders * 0.05) : 0));
+    const sales = Math.max(0, d.sales + (period === 'prev' ? -Math.round(d.sales * 0.05) : 0));
+    const avg = orders ? sales / orders : 0;
+    const conv = Math.max(0.005, d.conv * (period === 'prev' ? 0.95 : 1));
+    const uv = Math.round(orders / conv);
+    const cartRate = Math.min(0.45, conv * 2.5);
+    const addCart = Math.round(uv * cartRate);
+    const buyNow = Math.round(uv * conv * 0.6);
+    const checkoutRate = Math.min(0.95, conv * 5);
+    const dwell = Math.round(120 + _hashFloat(site, period, -60, 180));
+    const bounce = Math.min(0.85, 0.55 + _hashFloat(site, period, -0.1, 0.2));
+    return { sales, avg, uv, addCart, cartRate, buyNow, orders, checkoutRate, conv, dwell, bounce };
+}
+
+function getProcessData(site) {
+    const rp = appData.sku_period;
+    if (site === 'BV美' && rp && rp.skus) {
+        const cur = { sales: 0, avg: 0, uv: 0, addCart: 0, cartRate: 0, buyNow: 0, orders: 0, checkoutRate: 0, conv: 0, dwell: 0, bounce: 0 };
+        const prev = { sales: 0, avg: 0, uv: 0, addCart: 0, cartRate: 0, buyNow: 0, orders: 0, checkoutRate: 0, conv: 0, dwell: 0, bounce: 0 };
+        let curW = 0, prevW = 0;
+        Object.values(rp.skus).forEach(s => {
+            if (s.current) {
+                cur.sales += s.current.sales; cur.uv += s.current.uv; cur.addCart += s.current.add_cart;
+                cur.buyNow += s.current.buy_now; cur.orders += s.current.orders; cur.dwell += s.current.dwell_sec;
+                cur.bounce += s.current.bounce * s.current.uv; curW += s.current.uv;
+            }
+            if (s.previous) {
+                prev.sales += s.previous.sales; prev.uv += s.previous.uv; prev.addCart += s.previous.add_cart;
+                prev.buyNow += s.previous.buy_now; prev.orders += s.previous.orders; prev.dwell += s.previous.dwell_sec;
+                prev.bounce += s.previous.bounce * s.previous.uv; prevW += s.previous.uv;
+            }
+        });
+        cur.avg = cur.orders ? cur.sales / cur.orders : 0; cur.cartRate = cur.uv ? cur.addCart / cur.uv : 0;
+        cur.checkoutRate = cur.addCart ? (cur.orders / cur.addCart) : 0; cur.conv = cur.uv ? cur.orders / cur.uv : 0;
+        cur.dwell = cur.orders ? cur.dwell / cur.orders : 0; cur.bounce = curW ? cur.bounce / curW : 0;
+        prev.avg = prev.orders ? prev.sales / prev.orders : 0; prev.cartRate = prev.uv ? prev.addCart / prev.uv : 0;
+        prev.checkoutRate = prev.addCart ? (prev.orders / prev.addCart) : 0; prev.conv = prev.uv ? prev.orders / prev.uv : 0;
+        prev.dwell = prev.orders ? prev.dwell / prev.orders : 0; prev.bounce = prevW ? prev.bounce / prevW : 0;
+        return { cur, prev, real: true };
+    }
+    // 其他站点：示例数据
+    return { cur: synthProcessData(site, 'cur'), prev: synthProcessData(site, 'prev'), real: false };
+}
+
+function fmtDelta(cur, prev, fmt, isRate) {
+    if (!prev) return '—';
+    const d = isRate ? (cur - prev) : (cur - prev) / prev * 100;
+    const v = isRate ? (d * 100).toFixed(1) + 'pct' : d.toFixed(1) + '%';
+    const cls = d >= 0 ? 'green' : 'red';
+    return `<span class="tag tag-${cls}">${d >= 0 ? '+' : ''}${v}</span>`;
+}
+
+function renderProcessCompare() {
+    const shop = document.getElementById('process-shop').value || 'all';
+    const sites = shop === 'all' ? PROCESS_SITES.filter(s => !EU_SUBS.includes(s)) : [shop];
+    let rows = '';
+    sites.forEach(site => {
+        const d = getProcessData(site);
+        const c = d.cur, p = d.prev;
+        rows += `<tr><td>${site}${d.real ? ' <span class="tag tag-cyan">真实</span>' : ' <span class="tag tag-yellow">示例</span>'}</td>` +
+            `<td class="num">${money(c.sales)}</td><td class="num">${fmtDelta(c.sales, p.sales, money, false)}</td>` +
+            `<td class="num">${money(c.avg)}</td><td class="num">${num(c.uv)}</td><td class="num">${num(c.addCart)}</td>` +
+            `<td class="num">${pct(c.cartRate * 100)}</td><td class="num">${num(c.buyNow)}</td><td class="num">${num(c.orders)}</td>` +
+            `<td class="num">${pct(c.checkoutRate * 100)}</td><td class="num">${pct(c.conv * 100)}</td>` +
+            `<td class="num">${fmtDur(c.dwell)}</td><td class="num">${pct(c.bounce * 100)}</td></tr>`;
+    });
+    document.getElementById('process-compare-body').innerHTML = rows || '<tr><td colspan="13">无数据</td></tr>';
+}
+
+function getChannelChangeData(site) {
+    const rp = appData.sku_period;
+    if (site === 'BV美' && rp && rp.skus) {
+        const out = {};
+        CHANNELS.forEach(ch => out[ch] = { cur: { orders: 0, sales: 0 }, prev: { orders: 0, sales: 0 } });
+        Object.values(rp.skus).forEach(s => {
+            if (!s.current || !s.previous) return;
+            // 根据主渠道归属（每个SKU只归一个主渠道）
+            const ch = _skuMainChannel(s.sku, 'BV美');
+            if (s.current) { out[ch].cur.orders += s.current.orders; out[ch].cur.sales += s.current.sales; }
+            if (s.previous) { out[ch].prev.orders += s.previous.orders; out[ch].prev.sales += s.previous.sales; }
+        });
+        return { channels: out, real: true };
+    }
+    // 示例：按站点渠道占比拆分
+    const d = A.by_site[site] || { channels: {} };
+    const out = {};
+    CHANNELS.forEach(ch => {
+        const curOrders = Math.round((d.channels[ch] || {}).orders || 0);
+        const curSales = Math.round((d.channels[ch] || {}).sales || 0);
+        const prevOrders = Math.round(curOrders * 0.92);
+        const prevSales = Math.round(curSales * 0.92);
+        out[ch] = { cur: { orders: curOrders, sales: curSales }, prev: { orders: prevOrders, sales: prevSales } };
+    });
+    return { channels: out, real: false };
+}
+
+function _skuMainChannel(sku, site) {
+    const shares = CH_SHARE[site] || CH_SHARE['AC美'];
+    let r = (Math.abs(sku.split('').reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 1000000, 0)) % 1000) / 1000.0;
+    let acc = 0;
+    for (const [ch, sh] of Object.entries(shares)) { acc += sh; if (r <= acc) return ch; }
+    return Object.keys(shares).pop();
+}
+
+function renderChannelChange() {
+    const shop = document.getElementById('channel-shop').value || 'all';
+    const sites = shop === 'all' ? PROCESS_SITES.filter(s => !EU_SUBS.includes(s)) : [shop];
+    let rows = '';
+    const chartData = [];
+    sites.forEach(site => {
+        const d = getChannelChangeData(site);
+        CHANNELS.forEach(ch => {
+            const c = d.channels[ch].cur, p = d.channels[ch].prev;
+            const oDelta = c.orders - p.orders;
+            const sDelta = c.sales - p.sales;
+            rows += `<tr><td>${site}${d.real ? ' <span class="tag tag-cyan">真实</span>' : ''}</td><td>${ch}</td>` +
+                `<td class="num">${num(c.orders)}</td><td class="num">${num(p.orders)}</td>` +
+                `<td class="num"><span class="tag tag-${oDelta >= 0 ? 'green' : 'red'}">${oDelta >= 0 ? '+' : ''}${num(oDelta)}</span></td>` +
+                `<td class="num">${money(c.sales)}</td><td class="num">${money(p.sales)}</td>` +
+                `<td class="num"><span class="tag tag-${sDelta >= 0 ? 'green' : 'red'}">${sDelta >= 0 ? '+' : ''}${money(sDelta)}</span></td></tr>`;
+            if (shop === 'all') chartData.push({ site, ch, oDelta, sDelta });
+        });
+    });
+    document.getElementById('channel-change-body').innerHTML = rows || '<tr><td colspan="8">无数据</td></tr>';
+    // 图表
+    const cats = CHANNELS;
+    const oData = cats.map(ch => chartData.filter(d => d.ch === ch).reduce((s, d) => s + d.oDelta, 0));
+    const sData = cats.map(ch => chartData.filter(d => d.ch === ch).reduce((s, d) => s + d.sDelta, 0));
+    const oc = safeInit('channel-change-chart');
+    oc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 60, right: 20, top: 20, bottom: 30 },
+        xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8' } },
+        yAxis: { type: 'value', axisLabel: { color: '#94a3b8' } },
+        series: [{ type: 'bar', data: oData, itemStyle: { color: p => oData[p.dataIndex] >= 0 ? '#22c55e' : '#ef4444', borderRadius: [6, 6, 0, 0] } }] });
+    const sc = safeInit('channel-sales-chart');
+    sc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 60, right: 20, top: 20, bottom: 30 },
+        xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8' } },
+        yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
+        series: [{ type: 'bar', data: sData, itemStyle: { color: p => sData[p.dataIndex] >= 0 ? '#22c55e' : '#ef4444', borderRadius: [6, 6, 0, 0] } }] });
+}
+
+/* ===================================================================
  * 运营 / 投放动作（钉钉抓取示例 + 筛选）
  * =================================================================== */
 function getOpsSample() {
@@ -1008,7 +1228,8 @@ function initFilters() {
     document.getElementById('ads-owner').innerHTML = ['全部', ...new Set(getAdsSample().map(r => r.owner))].map(o => `<option>${o}</option>`).join('');
     document.getElementById('ads-channel').innerHTML = ['全部', ...CHANNELS].map(c => `<option>${c}</option>`).join('');
     ['ops-period', 'ops-month', 'ops-owner', 'ops-category', 'ads-period', 'ads-month', 'ads-owner', 'ads-channel',
-     'category-shop', 'cat-detail-shop', 'cat-detail-layer', 'product-shop', 'product-layer'].forEach(id => {
+     'category-shop', 'cat-detail-shop', 'cat-detail-layer', 'product-shop', 'product-layer',
+     'process-shop', 'process-period', 'channel-shop', 'channel-period'].forEach(id => {
         const el = document.getElementById(id); if (el) el.onchange = () => rerender();
     });
     const ow = document.getElementById('ogsms-week'); if (ow) ow.onchange = renderWeeklyReview;
@@ -1563,10 +1784,13 @@ const DERIVATIONS = {
     source: '同站点汇总，按单站点拆分。渠道占比BV美=真实Excel，其他站=合成。SKU列表从 sku_master 过滤。',
     metrics: [
       { n: '各指标(Hero卡)', m: 'combined', f: '同站点汇总，按 site 过滤' },
-      { n: '渠道明细占比', m: 'frontend', f: 'channel.sales / site.sales x 100（brkRow）' },
-      { n: '类目明细占比', m: 'frontend', f: 'category.sales / site.sales x 100（brkRow）' },
-      { n: '分层明细占比', m: 'frontend', f: 'layer.sales / site.sales x 100（brkRow）' },
-      { n: 'SKU列表进度', m: 'frontend', f: 'actual_orders / target_orders x 100（inline）' }
+      { n: '客单价', m: 'ai', f: 'site.sales / site.orders -> data.json' },
+      { n: '转化率', m: 'ai', f: 'Sigma(conv x orders) / Sigma(orders) by site -> data.json' },
+      { n: '渠道明细', m: 'frontend', f: 'channel.sales / channel.orders / channel.sku_count' },
+      { n: '渠道销售额占比', m: 'frontend', f: 'channel.sales / site.sales x 100' },
+      { n: '渠道单量占比', m: 'frontend', f: 'channel.orders / site.orders x 100' },
+      { n: '类目/分层明细', m: 'frontend', f: 'category/layer sales/orders/sku_count/aov/conv' },
+      { n: 'SKU列表进度', m: 'frontend', f: 'actual_orders / target_orders x 100；当前目标单量=target_orders x tp/100；单量偏差=actual - 当前目标；进度偏差=完成率 - 时间进度' }
     ],
     code: 'app.js::renderSiteDetail / brkRow / renderShopSkuTable'
   },
@@ -1650,6 +1874,19 @@ const DERIVATIONS = {
     note: '22字段为CSV源数据直填，零计算误差。环比差值可前端化（公式简单：本-上）。',
     code: 'build_data.py::_read_period / _mk_delta / build_series；app.js::renderRealSkuModal / openSkuModal'
   },
+  'sku-deep|deep': {
+    title: '单品深度 - 深入分析', badge: 'mixed', method: 'frontend',
+    source: '目标单量来自 sku_master（演示/合成）；实际单量来自本周期CSV（真实）或 sku_master（演示）。时间进度来自 month_meta。',
+    metrics: [
+      { n: '目标单量', m: 'source', f: 'sku_master.target_orders' },
+      { n: '实际单量', m: 'source', f: '真实：CSV->current.orders；演示：sku_master.actual_orders' },
+      { n: '完成率', m: 'frontend', f: 'orders / target_orders x 100' },
+      { n: '进度偏差', m: 'frontend', f: '完成率 - 时间进度' },
+      { n: '单量偏差(超前/滞后)', m: 'frontend', f: 'orders - target_orders x tp/100' },
+      { n: '环比指标', m: 'ai', f: '_mk_delta: (本-上)/上 x 100 或 百分点' }
+    ],
+    code: 'app.js::buildDeepAnalysisHTML / renderSkuDeep'
+  },
   'sku-deep|actions': {
     title: '单品深度 - 运营动作', badge: 'mixed', method: 'combined',
     source: '1.实际运营动作=系统抓取（当前未接入->显示"无"）。2.OGSM运营动作=本月OGSM计划CSV。',
@@ -1723,6 +1960,27 @@ const DERIVATIONS = {
       { n: '问题分析', m: 'frontend', f: '模板拼装: filter(gap<0) + 建议文案' }
     ],
     code: 'app.js::generateMonthlyReview'
+  },
+  'process|all': {
+    title: '分站点过程数据对比', badge: 'mixed', method: 'combined',
+    source: 'BV美：真实本/上周期CSV（商品-周期数据监控_本/上周期数据.csv）聚合。其余站点：按当前站点销售额/订单/转化率生成的示例数据，待上传真实周期CSV后替换。',
+    metrics: [
+      { n: 'BV美真实指标', m: 'source', f: 'CSV -> build_data.py -> data.json -> 前端直显' },
+      { n: '其他站点示例指标', m: 'ai', f: '基于站点实际销售额/订单/转化率，用固定公式模拟UV/加购/跳出等过程指标' },
+      { n: '销售额/单量/转化率环比', m: 'ai', f: '真实：(本-上)/上 x 100；示例：按预设比例模拟' },
+      { n: '表格渲染', m: 'frontend', f: '按站点过滤后逐行格式化' }
+    ],
+    code: 'app.js::renderProcessCompare / getProcessData'
+  },
+  'channel|all': {
+    title: '分站点出单渠道变化', badge: 'mixed', method: 'combined',
+    source: 'BV美：真实本/上周期CSV按主渠道归属聚合。其余站点：按当前渠道占比拆分销售额/订单后模拟上下周期。',
+    metrics: [
+      { n: 'BV美真实渠道变化', m: 'source', f: 'CSV -> 按SKU主渠道归属聚合 -> data.json' },
+      { n: '其他站点示例渠道变化', m: 'ai', f: '按站点当前渠道占比拆分，上周期按当前 x 0.92 模拟' },
+      { n: '图表', m: 'frontend', f: '全部站点渠道变化求和后柱状展示' }
+    ],
+    code: 'app.js::renderChannelChange / getChannelChangeData'
   },
   'strategy|gen': {
     title: '策略生成器', badge: 'demo', method: 'frontend',

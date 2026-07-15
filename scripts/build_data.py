@@ -205,45 +205,55 @@ for r in sku_master_cur:
 def aggregate(master, month):
     agg = {'by_site': {}, 'by_category': {}, 'by_layer': {}, 'total': {}}
     for s in SITES:
-        agg['by_site'][s] = {'sales': 0, 'orders': 0,
-                             'channels': {c: {'sales': 0, 'orders': 0} for c in CHANNELS},
-                             'categories': {c: {'sales': 0, 'orders': 0} for c in CATS},
-                             'layers': {l: {'sales': 0, 'orders': 0} for l in LAYERS}}
+        agg['by_site'][s] = {'sales': 0, 'orders': 0, 'conv_sum': 0.0, 'conv_w': 0, 'sku_count': 0,
+                             'channels': {c: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0} for c in CHANNELS},
+                             'categories': {c: {'sales': 0, 'orders': 0, 'sku_count': 0} for c in CATS},
+                             'layers': {l: {'sales': 0, 'orders': 0, 'sku_count': 0} for l in LAYERS}}
     for c in CATS:
         agg['by_category'][c] = {'sales': 0, 'orders': 0, 'target_sales': 0, 'target_orders': 0,
-                                 'by_site': {s: {'sales': 0, 'orders': 0} for s in SITES},
-                                 'layers': {l: {'sales': 0, 'orders': 0} for l in LAYERS},
-                                 'channels': {ch: {'sales': 0, 'orders': 0} for ch in CHANNELS}}
+                                 'conv_sum': 0.0, 'conv_w': 0, 'sku_count': 0,
+                                 'by_site': {s: {'sales': 0, 'orders': 0, 'sku_count': 0} for s in SITES},
+                                 'layers': {l: {'sales': 0, 'orders': 0, 'sku_count': 0} for l in LAYERS},
+                                 'channels': {ch: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0} for ch in CHANNELS}}
     for l in LAYERS:
         agg['by_layer'][l] = {'sales': 0, 'orders': 0, 'conv_sum': 0.0, 'conv_w': 0,
                               'target_orders': 0, 'sku_count': 0,
-                              'by_site': {s: {'sales': 0, 'orders': 0} for s in SITES}}
-    tot_s = tot_o = 0
+                              'by_site': {s: {'sales': 0, 'orders': 0, 'sku_count': 0} for s in SITES}}
+    tot_s = tot_o = tot_c = tot_w = 0
     for r in master:
         s, cat, layer = r['site'], r['category'], r['layer']
         sales, orders, conv = r['actual_sales'], r['actual_orders'], r['conv']
         tgt_o = r['target_orders']
-        tot_s += sales; tot_o += orders
+        tot_s += sales; tot_o += orders; tot_c += conv * orders; tot_w += orders
         bs = agg['by_site'][s]
-        bs['sales'] += sales; bs['orders'] += orders
+        bs['sales'] += sales; bs['orders'] += orders; bs['conv_sum'] += conv * orders; bs['conv_w'] += orders; bs['sku_count'] += 1
         for ch in CHANNELS:
             bs['channels'][ch]['sales'] += r['channels'][ch]['sales']
             bs['channels'][ch]['orders'] += r['channels'][ch]['orders']
-        bs['categories'][cat]['sales'] += sales; bs['categories'][cat]['orders'] += orders
-        bs['layers'][layer]['sales'] += sales; bs['layers'][layer]['orders'] += orders
+            bs['channels'][ch]['conv_sum'] += conv * r['channels'][ch]['orders']
+            bs['channels'][ch]['conv_w'] += r['channels'][ch]['orders']
+            if r['channels'][ch]['orders'] > 0:
+                bs['channels'][ch]['sku_count'] += 1
+        bs['categories'][cat]['sales'] += sales; bs['categories'][cat]['orders'] += orders; bs['categories'][cat]['sku_count'] += 1
+        bs['layers'][layer]['sales'] += sales; bs['layers'][layer]['orders'] += orders; bs['layers'][layer]['sku_count'] += 1
         bc = agg['by_category'][cat]
         bc['sales'] += sales; bc['orders'] += orders; bc['target_orders'] += tgt_o
-        bc['by_site'][s]['sales'] += sales; bc['by_site'][s]['orders'] += orders
-        bc['layers'][layer]['sales'] += sales; bc['layers'][layer]['orders'] += orders
+        bc['conv_sum'] += conv * orders; bc['conv_w'] += orders; bc['sku_count'] += 1
+        bc['by_site'][s]['sales'] += sales; bc['by_site'][s]['orders'] += orders; bc['by_site'][s]['sku_count'] += 1
+        bc['layers'][layer]['sales'] += sales; bc['layers'][layer]['orders'] += orders; bc['layers'][layer]['sku_count'] += 1
         for ch in CHANNELS:
             bc['channels'][ch]['sales'] += r['channels'][ch]['sales']
             bc['channels'][ch]['orders'] += r['channels'][ch]['orders']
+            bc['channels'][ch]['conv_sum'] += conv * r['channels'][ch]['orders']
+            bc['channels'][ch]['conv_w'] += r['channels'][ch]['orders']
+            if r['channels'][ch]['orders'] > 0:
+                bc['channels'][ch]['sku_count'] += 1
         bl = agg['by_layer'][layer]
         bl['sales'] += sales; bl['orders'] += orders; bl['target_orders'] += tgt_o
         bl['sku_count'] += 1; bl['conv_sum'] += conv * orders; bl['conv_w'] += orders
-        bl['by_site'][s]['sales'] += sales; bl['by_site'][s]['orders'] += orders
-    agg['total'] = {'sales': tot_s, 'orders': tot_o,
-                    'aov': round(tot_s / tot_o, 1) if tot_o else 0}
+        bl['by_site'][s]['sales'] += sales; bl['by_site'][s]['orders'] += orders; bl['by_site'][s]['sku_count'] += 1
+    agg['total'] = {'sales': tot_s, 'orders': tot_o, 'conv': round(tot_c / tot_w, 4) if tot_w else 0,
+                    'aov': round(tot_s / tot_o, 1) if tot_o else 0, 'sku_count': len(master)}
     for s in SITES:
         bs = agg['by_site'][s]
         tgt = TARGETS[month][s]['sales_target']
@@ -251,14 +261,28 @@ def aggregate(master, month):
         bs['target_progress'] = round(bs['sales'] / tgt * 100, 1) if tgt else 0
         bs['time_progress'] = TP[month]
         bs['aov'] = round(bs['sales'] / bs['orders'], 1) if bs['orders'] else 0
+        bs['conv'] = round(bs['conv_sum'] / bs['conv_w'], 4) if bs['conv_w'] else 0
         bs['gap'] = round(bs['sales'] - tgt * bs['time_progress'] / 100.0)
+        for ch in CHANNELS:
+            chv = bs['channels'][ch]
+            chv['conv'] = round(chv['conv_sum'] / chv['conv_w'], 4) if chv['conv_w'] else 0
+            chv['aov'] = round(chv['sales'] / chv['orders'], 1) if chv['orders'] else 0
+            del chv['conv_sum']; del chv['conv_w']
+        del bs['conv_sum']; del bs['conv_w']
     for c in CATS:
         bc = agg['by_category'][c]
         bc['target_sales'] = round(bc['target_orders'] * AOV[c])
         bc['target_progress'] = round(bc['sales'] / bc['target_sales'] * 100, 1) if bc['target_sales'] else 0
         bc['time_progress'] = TP[month]
         bc['aov'] = round(bc['sales'] / bc['orders'], 1) if bc['orders'] else 0
+        bc['conv'] = round(bc['conv_sum'] / bc['conv_w'], 4) if bc['conv_w'] else 0
         bc['gap'] = round(bc['sales'] - bc['target_sales'] * TP[month] / 100.0)
+        for ch in CHANNELS:
+            chv = bc['channels'][ch]
+            chv['conv'] = round(chv['conv_sum'] / chv['conv_w'], 4) if chv['conv_w'] else 0
+            chv['aov'] = round(chv['sales'] / chv['orders'], 1) if chv['orders'] else 0
+            del chv['conv_sum']; del chv['conv_w']
+        del bc['conv_sum']; del bc['conv_w']
     for l in LAYERS:
         bl = agg['by_layer'][l]
         bl['conv'] = round(bl['conv_sum'] / bl['conv_w'], 4) if bl['conv_w'] else 0
