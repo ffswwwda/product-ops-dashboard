@@ -11,7 +11,7 @@
     <!-- 顶部导航栏 -->
     <nav class="navbar">
         <div class="navbar-left">
-            <div class="navbar-brand"><div class="navbar-logo">📊</div><span>AI运营看板</span></div>
+            <div class="navbar-brand"><div class="navbar-logo"></div><span>AI运营看板</span></div>
             <div class="navbar-main-nav">
                 <div class="navbar-main-item active" data-page="site">站点</div>
                 <div class="navbar-main-item" data-page="category">类目</div>
@@ -25,46 +25,46 @@
             <span class="nav-cutoff" id="nav-cutoff">截止 --</span>
             <span class="nav-date" id="nav-date">--</span>
             <select class="filter-select" id="global-month" style="width:auto;padding:6px 10px;font-size:12px;"></select>
-            <button class="btn btn-secondary" onclick="openExchangeModal()" style="padding:6px 12px;font-size:12px;">💱 汇率</button>
-            <div class="nav-user">👤</div>
+            <button class="btn btn-secondary" onclick="openExchangeModal()" style="padding:6px 12px;font-size:12px;">汇率</button>
+            <div class="nav-user"></div>
         </div>
     </nav>
 
     <!-- 左侧导航栏 -->
     <aside class="sidebar">
         <div class="sidebar-section-title">站点（4店铺）</div>
-        <div class="sidebar-nav-item active" data-page="site" data-sub="all">🏠 全部站点汇总</div>
-        <div class="sidebar-nav-item" data-page="site" data-sub="AC美">🏪 AC美</div>
-        <div class="sidebar-nav-item" data-page="site" data-sub="BV美">🏪 BV美</div>
-        <div class="sidebar-nav-item" data-page="site" data-sub="UK英">🏪 UK英</div>
-        <div class="sidebar-nav-item" data-page="site" data-sub="EU欧">🏪 EU欧</div>
+        <div class="sidebar-nav-item active" data-page="site" data-sub="all">全部站点汇总</div>
+        <div class="sidebar-nav-item" data-page="site" data-sub="AC美">AC美</div>
+        <div class="sidebar-nav-item" data-page="site" data-sub="BV美">BV美</div>
+        <div class="sidebar-nav-item" data-page="site" data-sub="UK英">UK英</div>
+        <div class="sidebar-nav-item" data-page="site" data-sub="EU欧">EU欧</div>
 
         <div class="sidebar-section-title">类目</div>
-        <div class="sidebar-nav-item" data-page="category" data-sub="all">📦 全部分类汇总</div>
-        <div class="sidebar-nav-item" data-page="category" data-sub="飞机杯">☕ 飞机杯</div>
-        <div class="sidebar-nav-item" data-page="category" data-sub="增大器">💪 增大器</div>
-        <div class="sidebar-nav-item" data-page="category" data-sub="龟头训练器">🔵 龟头训练器</div>
+        <div class="sidebar-nav-item" data-page="category" data-sub="all">全部分类汇总</div>
+        <div class="sidebar-nav-item" data-page="category" data-sub="飞机杯">飞机杯</div>
+        <div class="sidebar-nav-item" data-page="category" data-sub="增大器">增大器</div>
+        <div class="sidebar-nav-item" data-page="category" data-sub="龟头训练器">龟头训练器</div>
 
         <div class="sidebar-section-title">商品（按结构层）</div>
-        <div class="sidebar-nav-item" data-page="product" data-sub="all">📋 全部商品</div>
-        <div class="sidebar-nav-item" data-page="product" data-sub="超爆">🔥 超爆商品</div>
-        <div class="sidebar-nav-item" data-page="product" data-sub="爆款">⚡ 爆款商品</div>
-        <div class="sidebar-nav-item" data-page="product" data-sub="头部">🥇 头部商品</div>
-        <div class="sidebar-nav-item" data-page="product" data-sub="腰部">🥈 腰部商品</div>
-        <div class="sidebar-nav-item" data-page="product" data-sub="尾部">🥉 尾部商品</div>
-        <div class="sidebar-nav-item" data-page="product" data-sub="focus">🎯 重点单品监控</div>
+        <div class="sidebar-nav-item" data-page="product" data-sub="all">全部商品</div>
+        <div class="sidebar-nav-item" data-page="product" data-sub="超爆">超爆商品</div>
+        <div class="sidebar-nav-item" data-page="product" data-sub="爆款">爆款商品</div>
+        <div class="sidebar-nav-item" data-page="product" data-sub="头部">头部商品</div>
+        <div class="sidebar-nav-item" data-page="product" data-sub="腰部">腰部商品</div>
+        <div class="sidebar-nav-item" data-page="product" data-sub="尾部">尾部商品</div>
+        <div class="sidebar-nav-item" data-page="product" data-sub="focus">重点单品监控</div>
 
         <div class="sidebar-section-title">运营/投放动作</div>
-        <div class="sidebar-nav-item" data-page="operations" data-sub="ops">🛠 运营动作</div>
-        <div class="sidebar-nav-item" data-page="operations" data-sub="ads">📣 投放动作</div>
+        <div class="sidebar-nav-item" data-page="operations" data-sub="ops">运营动作</div>
+        <div class="sidebar-nav-item" data-page="operations" data-sub="ads">投放动作</div>
 
         <div class="sidebar-section-title">复盘助手</div>
-        <div class="sidebar-nav-item" data-page="review" data-sub="ogsms">📋 OGSM周复盘</div>
-        <div class="sidebar-nav-item" data-page="review" data-sub="monthly">📊 月度复盘</div>
+        <div class="sidebar-nav-item" data-page="review" data-sub="ogsms">OGSM周复盘</div>
+        <div class="sidebar-nav-item" data-page="review" data-sub="monthly">月度复盘</div>
 
         <div class="sidebar-section-title">策略生成器</div>
-        <div class="sidebar-nav-item" data-page="strategy" data-sub="gen">💡 策略生成器</div>
-        <div class="sidebar-nav-item" data-page="strategy" data-sub="lib">📚 策略库管理</div>
+        <div class="sidebar-nav-item" data-page="strategy" data-sub="gen">策略生成器</div>
+        <div class="sidebar-nav-item" data-page="strategy" data-sub="lib">策略库管理</div>
     </aside>
 
     <!-- 主内容区 -->
@@ -73,52 +73,52 @@
         <!-- ============ 站点 - 全部站点汇总 (HERO) ============ -->
         <section id="page-site-all" class="page-section">
             <div class="page-header">
-                <div><h1 class="page-title">🏠 全部站点汇总</h1>
+                <div><h1 class="page-title">全部站点汇总</h1>
                     <p class="page-subtitle" id="site-summary-sub">4 店铺合并 · 目标 × 实际 × 时间进度 核心指标</p></div>
                 <div class="page-actions"><span class="tag tag-cyan" id="site-summary-badge"></span></div>
             </div>
             <div id="site-summary-cards" style="margin-top:8px;"></div>
             <div class="grid-2" style="margin-top:20px;">
-                <div class="card"><div class="card-header"><div class="card-title">🏆 站点完成销售额排行</div></div>
+                <div class="card"><div class="card-header"><div class="card-title">站点完成销售额排行</div></div>
                     <div class="card-body"><div id="site-rank-chart" style="height:260px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">📈 销售额趋势（目标 vs 实际）</div><div class="card-subtitle">各月全量 / 本月按节奏</div></div>
+                <div class="card"><div class="card-header"><div class="card-title">销售额趋势（目标 vs 实际）</div><div class="card-subtitle">各月全量 / 本月按节奏</div></div>
                     <div class="card-body"><div id="site-trend-chart" style="height:260px;"></div></div></div>
             </div>
             <div class="card" style="margin-top:20px;">
-                <div class="card-header"><div class="card-title">🗂️ 各站点核心指标（目标 × 实际 × 进度）</div>
+                <div class="card-header"><div class="card-title">各站点核心指标（目标 × 实际 × 进度）</div>
                     <div class="card-subtitle">超前/滞后 = 实际 − 目标×时间进度</div></div>
                 <div class="card-body"><table class="data-table">
                     <thead><tr><th>站点</th><th>目标销售额</th><th>完成销售额</th><th>目标进度</th><th>时间进度</th><th>超前/滞后</th><th>订单数</th><th>客单价</th></tr></thead>
                     <tbody id="site-summary-table"></tbody></table></div>
             </div>
             <div class="grid-3" style="margin-top:20px;">
-                <div class="card"><div class="card-header"><div class="card-title">📡 分渠道销售额</div></div><div class="card-body"><div id="site-channel-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">📦 分类目销售额</div></div><div class="card-body"><div id="site-category-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">🥧 商品分层销售额</div></div><div class="card-body"><div id="site-layer-chart" style="height:300px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">分渠道销售额</div></div><div class="card-body"><div id="site-channel-chart" style="height:300px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">分类目销售额</div></div><div class="card-body"><div id="site-category-chart" style="height:300px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">商品分层销售额</div></div><div class="card-body"><div id="site-layer-chart" style="height:300px;"></div></div></div>
             </div>
         </section>
 
         <!-- ============ 站点 - 单店铺深度 ============ -->
         <section id="page-site-detail" class="page-section" style="display:none;">
             <div class="page-header">
-                <div><h1 class="page-title" id="shop-detail-title">🏪 店铺深度分析</h1>
+                <div><h1 class="page-title" id="shop-detail-title">店铺深度分析</h1>
                     <p class="page-subtitle" id="shop-detail-subtitle">店铺维度 · 总销售/目标/进度 + 分渠道/类目/分层（单量）+ 分层/单品可下钻</p></div>
                 <div class="page-actions"><button class="btn btn-secondary" onclick="switchPage('site','all')">← 返回全部站点</button></div>
             </div>
             <div id="shop-detail-cards" style="margin-top:8px;"></div>
             <div class="grid-3" style="margin-top:20px;">
-                <div class="card"><div class="card-header"><div class="card-title">📡 分渠道（销售额 / 单量）</div></div><div class="card-body"><div id="shop-channel-chart" style="height:280px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">🍰 分类目（销售 / 单量）</div></div><div class="card-body"><div id="shop-category-chart" style="height:280px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">🥧 商品分层（销售 / 单量）</div><div class="card-subtitle">点击分层查看该层单品</div></div><div class="card-body"><div id="shop-layer-chart" style="height:280px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">分渠道（销售额 / 单量）</div></div><div class="card-body"><div id="shop-channel-chart" style="height:280px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">分类目（销售 / 单量）</div></div><div class="card-body"><div id="shop-category-chart" style="height:280px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">商品分层（销售 / 单量）</div><div class="card-subtitle">点击分层查看该层单品</div></div><div class="card-body"><div id="shop-layer-chart" style="height:280px;"></div></div></div>
             </div>
             <div class="card" style="margin-top:20px;">
-                <div class="card-header"><div class="card-title">📊 渠道 / 类目 / 分层 明细（销售额 + 单量）</div></div>
+                <div class="card-header"><div class="card-title">渠道 / 类目 / 分层 明细（销售额 + 单量）</div></div>
                 <div class="card-body"><table class="data-table">
                     <thead><tr><th>维度</th><th>细分</th><th class="num">销售额</th><th class="num">单量</th><th class="num">占本店比</th></tr></thead>
                     <tbody id="shop-breakdown-table"></tbody></table></div>
             </div>
             <div class="card" style="margin-top:20px;">
-                <div class="card-header"><div class="card-title">📦 分层下钻 · 单品列表（点击单品看本周期深度）</div>
+                <div class="card-header"><div class="card-title">分层下钻 · 单品列表（点击单品看本周期深度）</div>
                     <div class="card-subtitle" id="shop-layer-hint">选择上方分层图查看该层单品</div></div>
                 <div class="card-body"><table class="data-table">
                     <thead><tr><th>货号</th><th>类目</th><th>定位</th><th>变化</th><th>负责人</th><th class="num">目标单量</th><th class="num">实际单量</th><th class="num">进度</th><th>操作</th></tr></thead>
@@ -128,7 +128,7 @@
 
         <!-- ============ 类目 - 全部分类汇总 ============ -->
         <section id="page-category-all" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">📦 全部分类汇总</h1>
+            <div class="page-header"><div><h1 class="page-title">全部分类汇总</h1>
                 <p class="page-subtitle" id="category-summary-sub">类目 目标 × 实际 × 进度 × 环比 汇总</p></div></div>
             <div class="filter-bar">
                 <div class="filter-group"><span class="filter-label">店铺</span>
@@ -136,17 +136,17 @@
             </div>
             <div class="grid-3" id="category-cards" style="margin-top:8px;"></div>
             <div class="card" style="margin-top:20px;">
-                <div class="card-header"><div class="card-title">🏪 分店铺类目进度</div><div class="card-subtitle">不同店铺下各分类目的完成销售额</div></div>
+                <div class="card-header"><div class="card-title">分店铺类目进度</div><div class="card-subtitle">不同店铺下各分类目的完成销售额</div></div>
                 <div class="card-body"><div id="category-shop-chart" style="height:350px;"></div></div></div>
         </section>
 
         <!-- ============ 类目 - 深度分析（动态，每类目一页） ============ -->
         <section id="page-category-detail" class="page-section" style="display:none;">
             <div class="page-header">
-                <div><h1 class="page-title" id="cat-detail-title">☕ 飞机杯</h1>
+                <div><h1 class="page-title" id="cat-detail-title">飞机杯</h1>
                     <p class="page-subtitle" id="cat-detail-subtitle">类目深度 · 销售/进度/环比 + 结构单量/渠道单量/分店铺单量</p></div>
                 <div class="page-actions"><button class="btn btn-secondary" onclick="switchPage('category','all')">← 返回分类汇总</button>
-                    <button class="btn btn-secondary" onclick="switchPage('strategy','gen')">🎯 优化策略</button></div>
+                    <button class="btn btn-secondary" onclick="switchPage('strategy','gen')">优化策略</button></div>
             </div>
             <div class="filter-bar">
                 <div class="filter-group"><span class="filter-label">店铺（二次切分）</span>
@@ -156,12 +156,12 @@
             </div>
             <div id="cat-detail-cards" style="margin-top:8px;"></div>
             <div class="grid-3" style="margin-top:20px;">
-                <div class="card"><div class="card-header"><div class="card-title">📊 商品结构单量分布</div></div><div class="card-body"><div id="cat-detail-structure-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">📡 渠道单量分布</div></div><div class="card-body"><div id="cat-detail-channel-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">🏪 分店铺单量</div></div><div class="card-body"><div id="cat-detail-shop-chart" style="height:300px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">商品结构单量分布</div></div><div class="card-body"><div id="cat-detail-structure-chart" style="height:300px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">渠道单量分布</div></div><div class="card-body"><div id="cat-detail-channel-chart" style="height:300px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">分店铺单量</div></div><div class="card-body"><div id="cat-detail-shop-chart" style="height:300px;"></div></div></div>
             </div>
             <div class="card" style="margin-top:20px;">
-                <div class="card-header"><div class="card-title">🎯 重点单品（点击货号看本周期深度）</div>
+                <div class="card-header"><div class="card-title">重点单品（点击货号看本周期深度）</div>
                     <div class="card-subtitle" id="cat-detail-focus-sub"></div></div>
                 <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
                     <thead><tr><th>货号</th><th>站点</th><th>负责人</th><th class="num">上月销量</th><th class="num">本月目标</th><th class="num">实际单量</th><th class="num">进度</th><th>定位</th><th>变化</th><th>操作</th></tr></thead>
@@ -171,9 +171,9 @@
 
         <!-- ============ 商品 - 全部商品 ============ -->
         <section id="page-product-all" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">📋 全部商品</h1>
+            <div class="page-header"><div><h1 class="page-title">全部商品</h1>
                 <p class="page-subtitle">按店铺 / 商品结构层查看定位销售额与目标完成；单品可点开深度</p></div>
-                <div class="page-actions"><button class="btn btn-secondary" onclick="switchPage('product','focus')">🎯 重点单品监控</button></div></div>
+                <div class="page-actions"><button class="btn btn-secondary" onclick="switchPage('product','focus')">重点单品监控</button></div></div>
             <div class="filter-bar">
                 <div class="filter-group"><span class="filter-label">店铺</span>
                     <select class="filter-select" id="product-shop"><option>全部店铺</option><option>AC美</option><option>BV美</option><option>UK英</option><option>EU欧</option></select></div>
@@ -181,11 +181,11 @@
                     <select class="filter-select" id="product-layer"><option>全部层级</option><option>超爆</option><option>爆款</option><option>头部</option><option>腰部</option><option>尾部</option></select></div>
             </div>
             <div class="grid-2" style="margin-bottom:20px;margin-top:8px;">
-                <div class="chart-container"><div class="card-header"><div class="card-title">🥧 商品结构层销售额（实际）</div></div><div id="product-structure-chart" style="height:300px;"></div></div>
-                <div class="chart-container"><div class="card-header"><div class="card-title">📈 结构层实际 vs 目标结构</div></div><div id="product-trend-chart" style="height:300px;"></div></div>
+                <div class="chart-container"><div class="card-header"><div class="card-title">商品结构层销售额（实际）</div></div><div id="product-structure-chart" style="height:300px;"></div></div>
+                <div class="chart-container"><div class="card-header"><div class="card-title">结构层实际 vs 目标结构</div></div><div id="product-trend-chart" style="height:300px;"></div></div>
             </div>
             <div class="card" style="margin-top:20px;">
-                <div class="card-header"><div class="card-title">📦 单品列表（目标 vs 实际）</div><div class="card-subtitle">点击货号展开本周期深度</div></div>
+                <div class="card-header"><div class="card-title">单品列表（目标 vs 实际）</div><div class="card-subtitle">点击货号展开本周期深度</div></div>
                 <div class="card-body"><table class="data-table">
                     <thead><tr><th>货号</th><th>类目</th><th>站点</th><th class="num">本月目标单量</th><th class="num">实际单量</th><th class="num">进度</th><th>定位</th><th>变化</th><th>负责人</th><th>操作</th></tr></thead>
                     <tbody id="product-table-body"></tbody></table></div>
@@ -195,17 +195,17 @@
         <!-- ============ 商品 - 某结构层（动态） ============ -->
         <section id="page-product-layer" class="page-section" style="display:none;">
             <div class="page-header">
-                <div><h1 class="page-title" id="pl-title">🔥 超爆商品</h1>
+                <div><h1 class="page-title" id="pl-title">超爆商品</h1>
                     <p class="page-subtitle" id="pl-subtitle">该定位商品的分布 / 转化率 / 单品下钻</p></div>
                 <div class="page-actions"><button class="btn btn-secondary" onclick="switchPage('product','all')">← 返回全部商品</button></div>
             </div>
             <div id="pl-cards" style="margin-top:8px;"></div>
             <div class="grid-2" style="margin-top:20px;">
-                <div class="card"><div class="card-header"><div class="card-title">🏪 该层分店铺分布（销售 / 单量）</div></div><div class="card-body"><div id="pl-shop-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">📦 该层分店铺转化率</div></div><div class="card-body"><div id="pl-conv-chart" style="height:300px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">该层分店铺分布（销售 / 单量）</div></div><div class="card-body"><div id="pl-shop-chart" style="height:300px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">该层分店铺转化率</div></div><div class="card-body"><div id="pl-conv-chart" style="height:300px;"></div></div></div>
             </div>
             <div class="card" style="margin-top:20px;">
-                <div class="card-header"><div class="card-title">📦 该层单品列表（点击货号看本周期深度）</div></div>
+                <div class="card-header"><div class="card-title">该层单品列表（点击货号看本周期深度）</div></div>
                 <div class="card-body"><table class="data-table">
                     <thead><tr><th>货号</th><th>类目</th><th>站点</th><th class="num">本月目标单量</th><th class="num">实际单量</th><th class="num">进度</th><th>转化率</th><th>变化</th><th>负责人</th><th>操作</th></tr></thead>
                     <tbody id="pl-sku-table"></tbody></table></div>
@@ -214,15 +214,15 @@
 
         <!-- ============ 商品 - 重点单品监控 ============ -->
         <section id="page-product-focus" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">🎯 重点单品监控</h1>
+            <div class="page-header"><div><h1 class="page-title">重点单品监控</h1>
                 <p class="page-subtitle">搜索 SKU 添加重点单品；自定义监控周期（按数据周期）；目标单量监控</p></div>
-                <div class="page-actions"><button class="btn btn-primary" onclick="openFocusConfig()">⚙️ 重点单品配置</button></div></div>
+                <div class="page-actions"><button class="btn btn-primary" onclick="openFocusConfig()">重点单品配置</button></div></div>
             <div id="focus-product-list"></div>
         </section>
 
         <!-- ============ 运营动作 ============ -->
         <section id="page-operations-ops" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">🛠 运营动作</h1>
+            <div class="page-header"><div><h1 class="page-title">运营动作</h1>
                 <p class="page-subtitle">数据源：钉钉抓取（按 人/时间/类目 摘取）</p></div></div>
             <div class="filter-bar">
                 <div class="filter-group"><span class="filter-label">时间范围</span><select class="filter-select" id="ops-period"><option>本月</option><option>近7天</option><option>近30天</option><option>自定义</option></select></div>
@@ -238,7 +238,7 @@
 
         <!-- ============ 投放动作 ============ -->
         <section id="page-operations-ads" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">📣 投放动作</h1>
+            <div class="page-header"><div><h1 class="page-title">投放动作</h1>
                 <p class="page-subtitle">数据源：钉钉抓取（按 人/时间/类目/渠道 摘取）</p></div></div>
             <div class="filter-bar">
                 <div class="filter-group"><span class="filter-label">时间范围</span><select class="filter-select" id="ads-period"><option>本月</option><option>近7天</option><option>近30天</option><option>自定义</option></select></div>
@@ -255,38 +255,38 @@
 
         <!-- ============ OGSM 周复盘 ============ -->
         <section id="page-review-ogsms" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">📋 OGSM 周复盘 / 7月计划</h1>
+            <div class="page-header"><div><h1 class="page-title">OGSM 周复盘 / 7月计划</h1>
                 <p class="page-subtitle">「真实OGSM」为商品部7月飞机杯实际计划与周进度；「生成周复盘」为模板工具（按看板数据自动填D/检查）</p></div>
-                <div class="page-actions"><button class="btn btn-secondary" onclick="openOgsmConfig()">⚙️ 编辑OGSM配置</button></div></div>
+                <div class="page-actions"><button class="btn btn-secondary" onclick="openOgsmConfig()">编辑OGSM配置</button></div></div>
             <div style="display:flex;gap:8px;margin-bottom:16px;">
-                <button class="ogsm-tab active" id="ogsm-tab-real" onclick="switchOgsmTab('real')">📌 真实OGSM（7月）</button>
-                <button class="ogsm-tab" id="ogsm-tab-gen" onclick="switchOgsmTab('gen')">🛠 生成周复盘（模板）</button>
+                <button class="ogsm-tab active" id="ogsm-tab-real" onclick="switchOgsmTab('real')">真实OGSM（7月）</button>
+                <button class="ogsm-tab" id="ogsm-tab-gen" onclick="switchOgsmTab('gen')">生成周复盘（模板）</button>
             </div>
             <!-- 真实 OGSM -->
             <div id="ogsms-real-wrap">
-                <div class="card"><div class="card-header"><div class="card-title">📌 商品部 2026年7月 OGSM（飞机杯）</div>
+                <div class="card"><div class="card-header"><div class="card-title">商品部 2026年7月 OGSM（飞机杯）</div>
                     <div class="card-subtitle" id="ogsms-real-meta"></div></div>
                     <div class="card-body" style="padding:20px;">
                         <div class="filter-bar" style="margin-bottom:16px;">
-                            <button class="btn btn-secondary" onclick="copyOgsmReal()">📋 复制内容</button>
+                            <button class="btn btn-secondary" onclick="copyOgsmReal()">复制内容</button>
                         </div>
-                        <div id="ogsms-real" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-title">加载中…</div></div></div>
+                        <div id="ogsms-real" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">加载中…</div></div></div>
                     </div></div>
             </div>
             <!-- 生成周复盘 -->
             <div id="ogsms-gen-wrap" style="display:none;">
-                <div class="card"><div class="card-header"><div class="card-title">📅 OGSM周复盘（模板）</div>
+                <div class="card"><div class="card-header"><div class="card-title">OGSM周复盘（模板）</div>
                     <div class="card-subtitle">每周填写；同周再次保存覆盖；部分单品追踪用其独立周期</div></div>
                     <div class="card-body" style="padding:20px;">
                         <div class="filter-bar" style="margin-bottom:20px;">
                             <div class="filter-group"><span class="filter-label">选择周期</span>
                                 <select class="filter-select" id="ogsms-week"><option>第4周</option><option>第3周</option><option>第2周</option><option>第1周</option></select></div>
-                            <button class="btn btn-primary" onclick="renderWeeklyReview()">✨ 生成/填写周复盘</button>
-                            <button class="btn btn-secondary" onclick="autoFillWeeklyReview()">🤖 自动填写完成D与检查</button>
-                            <button class="btn btn-secondary" onclick="saveWeeklyReview()">💾 保存填写</button>
-                            <button class="btn btn-secondary" onclick="copyOGSMContent()">📋 复制内容</button>
+                            <button class="btn btn-primary" onclick="renderWeeklyReview()">生成/填写周复盘</button>
+                            <button class="btn btn-secondary" onclick="autoFillWeeklyReview()">自动填写完成D与检查</button>
+                            <button class="btn btn-secondary" onclick="saveWeeklyReview()">保存填写</button>
+                            <button class="btn btn-secondary" onclick="copyOGSMContent()">复制内容</button>
                         </div>
-                        <div id="ogsms-report" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon">📊</div><div class="empty-state-title">点击生成周复盘</div>
+                        <div id="ogsms-report" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">点击生成周复盘</div>
                             <div class="empty-state-desc">系统将根据 OGSM配置 渲染表格，并自动填写完成D与检查字段</div></div></div>
                     </div></div>
             </div>
@@ -294,16 +294,16 @@
 
         <!-- ============ 月度复盘 ============ -->
         <section id="page-review-monthly" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">📊 月度复盘</h1>
+            <div class="page-header"><div><h1 class="page-title">月度复盘</h1>
                 <p class="page-subtitle">固定模板，自动汇总当月目标完成 / 核心数据 / 问题分析（复用看板数据）</p></div></div>
-            <div class="card"><div class="card-header"><div class="card-title">📊 月度复盘</div></div>
+            <div class="card"><div class="card-header"><div class="card-title">月度复盘</div></div>
                 <div class="card-body" style="padding:20px;">
                     <div class="filter-bar" style="margin-bottom:20px;">
                         <div class="filter-group"><span class="filter-label">月份</span><select class="filter-select" id="monthly-month"></select></div>
-                        <button class="btn btn-primary" onclick="generateMonthlyReview()">✨ 生成月度复盘</button>
-                        <button class="btn btn-secondary" onclick="copyMonthlyContent()">📋 复制内容</button>
+                        <button class="btn btn-primary" onclick="generateMonthlyReview()">生成月度复盘</button>
+                        <button class="btn btn-secondary" onclick="copyMonthlyContent()">复制内容</button>
                     </div>
-                    <div id="monthly-report-detail"><div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-title">选择月份生成月度复盘</div>
+                    <div id="monthly-report-detail"><div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">选择月份生成月度复盘</div>
                         <div class="empty-state-desc">报告将自动汇总当月目标完成情况、核心数据、问题分析等</div></div></div>
                 </div></div>
             </div>
@@ -311,10 +311,10 @@
 
         <!-- ============ 策略生成器 ============ -->
         <section id="page-strategy-gen" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">💡 策略生成器</h1>
+            <div class="page-header"><div><h1 class="page-title">策略生成器</h1>
                 <p class="page-subtitle">基于历史策略库打分匹配，给出建议策略 / 成功率 / 关键事项 / 为什么 / OGSM</p></div></div>
             <div class="grid-2">
-                <div class="card"><div class="card-header"><div class="card-title">🎯 策略生成工具</div></div>
+                <div class="card"><div class="card-header"><div class="card-title">策略生成工具</div></div>
                     <div class="card-body" style="padding:20px;"><div style="display:flex;flex-direction:column;gap:16px;">
                         <div><label style="font-size:13px;color:var(--radium-text-muted);margin-bottom:8px;display:block;">运营目的</label>
                             <select class="filter-select" style="width:100%;" id="strategy-purpose">
@@ -325,24 +325,24 @@
                             <select class="filter-select" style="width:100%;" id="strategy-category"><option>飞机杯</option><option>增大器</option><option>龟头训练器</option></select></div>
                         <div><label style="font-size:13px;color:var(--radium-text-muted);margin-bottom:8px;display:block;">我的想法</label>
                             <textarea class="filter-select" style="width:100%;height:100px;resize:vertical;padding:10px;" id="strategy-idea" placeholder="请输入运营想法、目标或问题..."></textarea></div>
-                        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="generateStrategy()">✨ 生成策略建议</button>
+                        <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="generateStrategy()">生成策略建议</button>
                     </div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">💡 策略建议</div></div>
-                    <div class="card-body" style="padding:16px;"><div id="strategy-result"><div class="empty-state"><div class="empty-state-icon">💡</div><div class="empty-state-title">点击生成策略建议</div>
+                <div class="card"><div class="card-header"><div class="card-title">策略建议</div></div>
+                    <div class="card-body" style="padding:16px;"><div id="strategy-result"><div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">点击生成策略建议</div>
                         <div class="empty-state-desc">系统将根据需求匹配历史有效策略</div></div></div></div></div>
             </div>
             <div class="card" style="margin-top:20px;">
-                <div class="card-header"><div class="card-title">📊 策略数据看板</div></div>
+                <div class="card-header"><div class="card-title">策略数据看板</div></div>
                 <div class="card-body">
                     <div class="grid-4" style="margin-bottom:20px;">
-                        <div class="stat-card"><div class="stat-card-icon cyan">📋</div><div class="stat-card-value" id="stat-total">--</div><div class="stat-card-label">策略总数</div></div>
-                        <div class="stat-card"><div class="stat-card-icon blue">✅</div><div class="stat-card-value" id="stat-effective">--</div><div class="stat-card-label">有效/部分有效</div></div>
-                        <div class="stat-card"><div class="stat-card-icon purple">⏳</div><div class="stat-card-value" id="stat-pending">--</div><div class="stat-card-label">待观察/无效</div></div>
-                        <div class="stat-card"><div class="stat-card-icon green">📊</div><div class="stat-card-value" id="stat-rate">--</div><div class="stat-card-label">平均评分</div></div>
+                        <div class="stat-card"><div class="stat-card-icon cyan"></div><div class="stat-card-value" id="stat-total">--</div><div class="stat-card-label">策略总数</div></div>
+                        <div class="stat-card"><div class="stat-card-icon blue"></div><div class="stat-card-value" id="stat-effective">--</div><div class="stat-card-label">有效/部分有效</div></div>
+                        <div class="stat-card"><div class="stat-card-icon purple"></div><div class="stat-card-value" id="stat-pending">--</div><div class="stat-card-label">待观察/无效</div></div>
+                        <div class="stat-card"><div class="stat-card-icon green"></div><div class="stat-card-value" id="stat-rate">--</div><div class="stat-card-label">平均评分</div></div>
                     </div>
                     <div class="grid-2">
-                        <div><div style="font-size:13px;color:var(--radium-text-muted);margin-bottom:12px;">📦 策略类型分布</div><div id="strategy-type-chart" style="height:250px;"></div></div>
-                        <div><div style="font-size:13px;color:var(--radium-text-muted);margin-bottom:12px;">📈 各类型成功率</div><div id="strategy-success-chart" style="height:250px;"></div></div>
+                        <div><div style="font-size:13px;color:var(--radium-text-muted);margin-bottom:12px;">策略类型分布</div><div id="strategy-type-chart" style="height:250px;"></div></div>
+                        <div><div style="font-size:13px;color:var(--radium-text-muted);margin-bottom:12px;">各类型成功率</div><div id="strategy-success-chart" style="height:250px;"></div></div>
                     </div>
                 </div></div>
             </div>
@@ -350,11 +350,11 @@
 
         <!-- ============ 策略库管理 ============ -->
         <section id="page-strategy-lib" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">📚 策略库管理</h1>
+            <div class="page-header"><div><h1 class="page-title">策略库管理</h1>
                 <p class="page-subtitle">策略库查询 / 添加 / 导出 / 评分（策略生成器的基座）</p></div></div>
-            <div class="card"><div class="card-header"><div class="card-title">📚 策略库管理</div>
-                <div class="card-actions"><button class="btn btn-secondary" onclick="openStrategyModal()">➕ 添加策略</button>
-                    <button class="btn btn-secondary" onclick="exportStrategies()">📥 导出策略</button></div></div>
+            <div class="card"><div class="card-header"><div class="card-title">策略库管理</div>
+                <div class="card-actions"><button class="btn btn-secondary" onclick="openStrategyModal()">添加策略</button>
+                    <button class="btn btn-secondary" onclick="exportStrategies()">导出策略</button></div></div>
                 <div class="card-body">
                     <div class="filter-bar" style="margin-bottom:16px;">
                         <div class="filter-group"><span class="filter-label">策略类型</span><select class="filter-select" id="lib-type"><option>全部</option></select></div>
@@ -370,12 +370,12 @@
     <div id="sku-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:2100;align-items:center;justify-content:center;">
         <div style="background:rgba(28,38,64,0.97);border:1px solid var(--radium-border);border-radius:16px;padding:24px;width:92%;max-width:900px;max-height:90vh;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                <h3 id="sku-modal-title" style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">📦 单品深度</h3>
-                <button class="btn btn-secondary" onclick="closeSkuModal()">✕ 关闭</button>
+                <h3 id="sku-modal-title" style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">单品深度</h3>
+                <button class="btn btn-secondary" onclick="closeSkuModal()">关闭</button>
             </div>
             <div id="sku-modal-metrics" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;"></div>
             <div id="sku-modal-extra" style="margin-bottom:16px;"></div>
-            <div class="card"><div class="card-header"><div class="card-title" id="sku-series-title">📈 近 11 周单量走势（本周期）</div></div><div class="card-body"><div id="sku-series-chart" style="height:240px;"></div></div></div>
+            <div class="card" id="sku-series-card"><div class="card-header"><div class="card-title" id="sku-series-title">近 11 周单量走势（本周期）</div></div><div class="card-body"><div id="sku-series-chart" style="height:240px;"></div></div></div>
             <div id="sku-modal-actions" class="deep-section"></div>
             <div id="sku-modal-suggest" class="deep-section"></div>
             <div id="sku-modal-related" class="deep-section"></div>
@@ -386,16 +386,16 @@
     <div id="focus-product-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:2000;align-items:center;justify-content:center;">
         <div style="background:rgba(28,38,64,0.95);border:1px solid var(--radium-border);border-radius:16px;padding:24px;width:85%;max-width:920px;max-height:85vh;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h3 style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">⚙️ 重点单品配置</h3>
+                <h3 style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">重点单品配置</h3>
                 <div>
                     <input type="number" id="focus-top-n" value="20" min="1" style="width:70px;padding:6px;background:rgba(255,255,255,0.05);border:1px solid var(--radium-border);border-radius:8px;color:var(--radium-text-primary);">
-                    <button class="btn btn-secondary" onclick="focusTopN()">⚡ 选预估TopN</button>
-                    <button class="btn btn-secondary" onclick="closeFocusConfig()">✕ 关闭</button>
+                    <button class="btn btn-secondary" onclick="focusTopN()">选预估TopN</button>
+                    <button class="btn btn-secondary" onclick="closeFocusConfig()">关闭</button>
                 </div>
             </div>
-            <div style="margin-bottom:12px;"><input class="filter-select" id="focus-search" placeholder="🔍 搜索货号 / 站点 / 类目…" oninput="renderFocusConfigList()" style="width:100%;padding:10px;"></div>
-            <div id="focus-product-config"><div class="empty-state"><div class="empty-state-icon">📦</div><div class="empty-state-title">加载商品列表...</div></div></div>
-            <div style="margin-top:20px;text-align:right;"><button class="btn btn-primary" onclick="saveFocusProducts()">💾 保存配置</button></div>
+            <div style="margin-bottom:12px;"><input class="filter-select" id="focus-search" placeholder="搜索货号 / 站点 / 类目…" oninput="renderFocusConfigList()" style="width:100%;padding:10px;"></div>
+            <div id="focus-product-config"><div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">加载商品列表...</div></div></div>
+            <div style="margin-top:20px;text-align:right;"><button class="btn btn-primary" onclick="saveFocusProducts()">保存配置</button></div>
         </div>
     </div>
 
@@ -403,18 +403,18 @@
     <div id="ogsm-config-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:2000;align-items:center;justify-content:center;">
         <div style="background:rgba(28,38,64,0.95);border:1px solid var(--radium-border);border-radius:16px;padding:24px;width:90%;max-width:1000px;max-height:88vh;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                <h3 style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">⚙️ 编辑 OGSM 配置（每月可变）</h3>
-                <div><button class="btn btn-secondary" onclick="exportOgsmConfig()">📥 导出</button>
-                    <button class="btn btn-secondary" onclick="importOgsmConfig()">📥 导入JSON</button>
-                    <button class="btn btn-primary" onclick="saveOgsmConfig()">💾 保存配置</button>
-                    <button class="btn btn-secondary" onclick="closeOgsmConfig()">✕ 关闭</button></div>
+                <h3 style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">编辑 OGSM 配置（每月可变）</h3>
+                <div><button class="btn btn-secondary" onclick="exportOgsmConfig()">导出</button>
+                    <button class="btn btn-secondary" onclick="importOgsmConfig()">导入JSON</button>
+                    <button class="btn btn-primary" onclick="saveOgsmConfig()">保存配置</button>
+                    <button class="btn btn-secondary" onclick="closeOgsmConfig()">关闭</button></div>
             </div>
             <p style="font-size:12px;color:var(--radium-text-muted);margin-bottom:12px;" id="ogsm-config-note"></p>
             <div id="ogsm-config-editor"></div>
-            <div style="margin-top:12px;"><button class="btn btn-secondary" onclick="addOgsmSection()">➕ 添加板块</button></div>
+            <div style="margin-top:12px;"><button class="btn btn-secondary" onclick="addOgsmSection()">添加板块</button></div>
             <div id="ogsm-import-box" style="display:none;margin-top:12px;">
                 <textarea id="ogsm-import-text" style="width:100%;height:200px;background:rgba(0,0,0,0.3);color:var(--radium-text-primary);border:1px solid var(--radium-border);border-radius:8px;padding:10px;font-family:monospace;font-size:12px;"></textarea>
-                <div style="margin-top:8px;text-align:right;"><button class="btn btn-primary" onclick="applyOgsmImport()">✅ 应用导入</button></div>
+                <div style="margin-top:8px;text-align:right;"><button class="btn btn-primary" onclick="applyOgsmImport()">应用导入</button></div>
             </div>
         </div>
     </div>
@@ -423,8 +423,8 @@
     <div id="strategy-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:2000;align-items:center;justify-content:center;">
         <div style="background:rgba(28,38,64,0.95);border:1px solid var(--radium-border);border-radius:16px;padding:24px;width:85%;max-width:700px;max-height:85vh;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-                <h3 id="strategy-modal-title" style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">➕ 添加策略</h3>
-                <button class="btn btn-secondary" onclick="closeStrategyModal()">✕ 关闭</button></div>
+                <h3 id="strategy-modal-title" style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">添加策略</h3>
+                <button class="btn btn-secondary" onclick="closeStrategyModal()">关闭</button></div>
             <div style="display:flex;flex-direction:column;gap:12px;">
                 <input class="filter-select" id="sm-name" placeholder="策略名称">
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
@@ -437,7 +437,7 @@
                 <textarea class="filter-select" id="sm-why" placeholder="推荐理由" style="height:60px;"></textarea>
                 <textarea class="filter-select" id="sm-ogsm" placeholder="OGSM模板" style="height:60px;"></textarea>
             </div>
-            <div style="margin-top:16px;text-align:right;"><button class="btn btn-primary" onclick="submitStrategy()">💾 保存策略</button></div>
+            <div style="margin-top:16px;text-align:right;"><button class="btn btn-primary" onclick="submitStrategy()">保存策略</button></div>
         </div>
     </div>
 
@@ -445,15 +445,15 @@
     <div id="exchange-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:2000;align-items:center;justify-content:center;">
         <div style="background:rgba(28,38,64,0.95);border:1px solid var(--radium-border);border-radius:16px;padding:24px;width:80%;max-width:500px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-                <h3 style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">💱 汇率设置</h3>
-                <button class="btn btn-secondary" onclick="closeExchangeModal()">✕ 关闭</button></div>
+                <h3 style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">汇率设置</h3>
+                <button class="btn btn-secondary" onclick="closeExchangeModal()">关闭</button></div>
             <div style="display:flex;flex-direction:column;gap:16px;">
                 <div><label style="font-size:13px;color:var(--radium-text-muted);margin-bottom:8px;display:block;">AC美 ($ → ¥)</label><input type="number" id="exchange-ac" value="6.7167" style="width:100%;padding:10px;background:rgba(255,255,255,0.05);border:1px solid var(--radium-border);border-radius:8px;color:var(--radium-text-primary);"></div>
                 <div><label style="font-size:13px;color:var(--radium-text-muted);margin-bottom:8px;display:block;">BV美 ($ → ¥)</label><input type="number" id="exchange-bv" value="6.7167" style="width:100%;padding:10px;background:rgba(255,255,255,0.05);border:1px solid var(--radium-border);border-radius:8px;color:var(--radium-text-primary);"></div>
                 <div><label style="font-size:13px;color:var(--radium-text-muted);margin-bottom:8px;display:block;">UK英 (£ → ¥)</label><input type="number" id="exchange-uk" value="9.0339" style="width:100%;padding:10px;background:rgba(255,255,255,0.05);border:1px solid var(--radium-border);border-radius:8px;color:var(--radium-text-primary);"></div>
                 <div><label style="font-size:13px;color:var(--radium-text-muted);margin-bottom:8px;display:block;">EU欧 (€ → ¥)</label><input type="number" id="exchange-eu" value="7.8122" style="width:100%;padding:10px;background:rgba(255,255,255,0.05);border:1px solid var(--radium-border);border-radius:8px;color:var(--radium-text-primary);"></div>
             </div>
-            <div style="margin-top:20px;text-align:right;"><button class="btn btn-primary" onclick="saveExchangeRates()">💾 保存汇率</button></div>
+            <div style="margin-top:20px;text-align:right;"><button class="btn btn-primary" onclick="saveExchangeRates()">保存汇率</button></div>
         </div>
     </div>
 

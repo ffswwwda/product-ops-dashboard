@@ -246,6 +246,15 @@ body::after {
     cursor: pointer;
     transition: var(--radium-transition);
 }
+/* 二级分类/导航项前置小圆点（替代原 emoji 图标，降低视觉噪音） */
+.sidebar-nav-item::before {
+    content: '\2022';
+    color: var(--radium-text-muted);
+    font-size: 10px;
+    line-height: 1;
+    transform: translateY(1px);
+    flex: 0 0 auto;
+}
 
 .sidebar-nav-item:hover {
     color: var(--radium-text-strong);
@@ -513,6 +522,8 @@ body::after {
 .rel-table th { color: var(--radium-text-muted); font-weight: 500; }
 .rel-table td .rel-name { color: var(--radium-text-primary); font-weight: 500; }
 .rel-table .cmp-cell { white-space: nowrap; }
+.rel-table .rel-reason { max-width: 220px; }
+.rel-reason-tag { display: inline-block; font-size: 11px; line-height: 1.5; padding: 1px 7px; margin: 0 4px 4px 0; border-radius: 6px; background: rgba(99,102,241,.14); color: #a5b4fc; border: 1px solid rgba(99,102,241,.3); }
 .cmp-tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 6px; margin-right: 3px; }
 .cmp-above { background: rgba(34,211,238,.15); color: #22d3ee; }
 .cmp-below { background: rgba(251,113,133,.15); color: #fb7185; }
@@ -714,6 +725,9 @@ body::after {
     font-size: 48px;
     margin-bottom: 16px;
     opacity: 0.3;
+}
+.empty-state-icon:empty {
+    display: none;
 }
 
 .empty-state-title {

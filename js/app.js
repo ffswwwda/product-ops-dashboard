@@ -63,17 +63,17 @@ function deltaTag(f) {
     if (!f) return '<span class="tag">—</span>';
     if (f.is_rate) {
         const up = f.abs >= 0;
-        return `<span class="tag tag-${up ? 'green' : 'red'}">${up ? '▲ +' : '▼ '}${f.abs.toFixed(1)}pct</span>`;
+        return `<span class="tag tag-${up ? 'green' : 'red'}">${up ? '+' : '-'}${f.abs.toFixed(1)}pct</span>`;
     }
     if (f.rel == null) return '<span class="tag">—</span>';
     const up = f.rel >= 0;
-    return `<span class="tag tag-${up ? 'green' : 'red'}">${up ? '▲ +' : '▼ '}${f.rel.toFixed(1)}%</span>`;
+    return `<span class="tag tag-${up ? 'green' : 'red'}">${up ? '+' : '-'}${f.rel.toFixed(1)}%</span>`;
 }
 function deltaSub(f, key) {
     if (!f) return '';
-    if (f.is_rate) { const up = f.abs >= 0; return (up ? '▲ +' : '▼ ') + f.abs.toFixed(1) + 'pct'; }
+    if (f.is_rate) { const up = f.abs >= 0; return (up ? '+' : '-') + f.abs.toFixed(1) + 'pct'; }
     if (f.rel == null) return '环比 —';
-    const up = f.rel >= 0; return (up ? '▲ +' : '▼ ') + f.rel.toFixed(1) + '%';
+    const up = f.rel >= 0; return (up ? '+' : '-') + f.rel.toFixed(1) + '%';
 }
 function deltaTone(f, key) {
     if (!f) return '';
@@ -97,7 +97,7 @@ function targetHeroHTML(o) {
     const progressGap = rate - tp;
     const status = cls(rate, tp);                        // pos / warn / neg
     const hi = rate > 100 ? 100 : rate;
-    const momTxt = (o.mom != null) ? `${pct(o.mom)}${o.mom >= 0 ? ' ↑' : ' ↓'}` : '';
+    const momTxt = (o.mom != null) ? `${pct(o.mom)}` : '';
     return `<div class="target-hero">
       <div class="th-head">
         <span class="th-title">${esc(o.title || '目标对照总览')}</span>
@@ -117,7 +117,7 @@ function targetHeroHTML(o) {
         <div class="th-card k-rate">
           <div class="th-label">${scope === '单量' ? '单量完成进度' : '销售进度（目标进度）'}</div>
           <div class="th-num">${pct(rate)}</div>
-          <div class="th-sub">${progressGap >= 0 ? '🟢 超前 ' : '🔴 滞后 '}${Math.abs(progressGap).toFixed(1)}%</div>
+          <div class="th-sub">${progressGap >= 0 ? '超前 ' : '滞后 '}${Math.abs(progressGap).toFixed(1)}%</div>
         </div>
         <div class="th-card k-est">
           <div class="th-label">预估全月完成率</div>
@@ -321,7 +321,7 @@ function pieOpt(data, name) {
 let shopLayerChart = null;
 function renderSiteDetail(site) {
     const d = A.by_site[site];
-    document.getElementById('shop-detail-title').textContent = '🏪 ' + site + ' 店铺深度分析';
+    document.getElementById('shop-detail-title').textContent = site + ' 店铺深度分析';
     document.getElementById('shop-detail-cards').innerHTML = targetHeroHTML({
         scope: '销售额', target: d.target_sales, actual: d.sales, orders: d.orders, aov: d.aov,
         mom: A.mom.by_site[site], momLabel: '当月环比', title: site + ' · 目标对照总览',
@@ -393,7 +393,7 @@ function renderCategoryAll() {
             <div class="stat-card-label">${c}</div>
             <div class="stat-card-value cyan">${fmtW(d.sales)}</div>
             <div class="stat-card-sub">目标 ${fmtW(d.target_sales)} · 进度 <span class="tag tag-${cls(prog, d.time_progress)}">${pct(prog)}</span></div>
-            <div class="stat-card-sub">环比 ${pct(A.mom.by_category[c])} ${A.mom.by_category[c] >= 0 ? '↑' : '↓'} · 单量 ${num(d.orders)}</div>
+            <div class="stat-card-sub">环比 ${pct(A.mom.by_category[c])} ${A.mom.by_category[c] >= 0 ? '' : ''} · 单量 ${num(d.orders)}</div>
         </div>`;
     });
     document.getElementById('category-cards').innerHTML = rows;
@@ -418,7 +418,7 @@ function renderCategoryDetail(cat) {
     const prog = targetSales ? (sales / targetSales * 100) : 0;
     const gap = sales - targetSales * state.timeProgress / 100;
     const aov = orders ? sales / orders : 0;
-    document.getElementById('cat-detail-title').textContent = ({ '飞机杯': '☕', '增大器': '💪', '龟头训练器': '🔵' }[cat] || '📦') + ' ' + cat + (shop === '全部店铺' ? '' : ' · ' + shop);
+    document.getElementById('cat-detail-title').textContent = cat + (shop === '全部店铺' ? '' : ' · ' + shop);
     document.getElementById('cat-detail-cards').innerHTML = targetHeroHTML({
         scope: '销售额', target: targetSales, actual: sales, orders: orders, aov: aov,
         mom: A.mom.by_category[cat], momLabel: '月度环比', title: cat + ' · 目标对照总览',
@@ -488,7 +488,7 @@ function renderProductAll() {
 }
 function renderProductLayer(layer) {
     const d = A.by_layer[layer];
-    document.getElementById('pl-title').textContent = ({ '超爆': '🔥', '爆款': '⚡', '头部': '🥇', '腰部': '🥈', '尾部': '🥉' }[layer] || '📦') + ' ' + layer + '商品';
+    document.getElementById('pl-title').textContent = layer + '商品';
     document.getElementById('pl-cards').innerHTML = targetHeroHTML({
         scope: '单量', target: d.target_orders, actual: d.orders,
         title: layer + '商品 · 目标对照总览',
@@ -528,7 +528,7 @@ function openSkuModal(code, site) {
     const r = (appData.sku_index || {})[code + '|' + site];
     if (!r) { alert('未找到该单品数据'); return; }
     document.getElementById('sku-modal').style.display = 'flex';
-    document.getElementById('sku-modal-title').textContent = '📦 ' + code + ' · ' + site;
+    document.getElementById('sku-modal-title').textContent = code + ' · ' + site;
     const prog = r.target_orders ? (r.actual_orders / r.target_orders * 100) : 0;
     const tpProg = state.timeProgress;
     document.getElementById('sku-modal-metrics').innerHTML =
@@ -545,7 +545,8 @@ function openSkuModal(code, site) {
         .slice(0, 3).map(c => `${c} ${num(rint(r.channels[c].orders))}`);
     document.getElementById('sku-modal-extra').innerHTML =
         `<div style="font-size:12px;color:var(--radium-text-muted);">渠道（多通道）：${chParts.join(' / ') || '—'} ｜ 备注：${esc(r.remark) || '—'}</div>`;
-    const st = document.getElementById('sku-series-title'); if (st) st.textContent = '📈 近 11 周单量走势（本周期）';
+    const scCard = document.getElementById('sku-series-card'); if (scCard) scCard.style.display = '';
+    const st = document.getElementById('sku-series-title'); if (st) st.textContent = '近 11 周单量走势（本周期）';
     const sc = safeInit('sku-series-chart');
     const ser = r.series || [];
     sc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 50, right: 20, top: 20, bottom: 40 },
@@ -556,7 +557,7 @@ function openSkuModal(code, site) {
 }
 function renderRealSkuModal(s, rp) {
     document.getElementById('sku-modal').style.display = 'flex';
-    document.getElementById('sku-modal-title').textContent = '📦 ' + s.sku + ' · ' + rp.site;
+    document.getElementById('sku-modal-title').textContent = s.sku + ' · ' + rp.site;
     const c = s.current, dl = s.delta;
     let m = '';
     m += card('本周期销售额', money(c.sales), '均价 ' + money(c.avg_price), 'cyan');
@@ -588,29 +589,25 @@ function renderRealSkuModal(s, rp) {
         ex += `<div class="empty-state-desc">本周期数据，无上一周期对照</div>`;
     }
     document.getElementById('sku-modal-extra').innerHTML = ex;
-    const st = document.getElementById('sku-series-title'); if (st) st.textContent = '🔻 转化漏斗：访问 → 加购 → 下单';
-    const fc = safeInit('sku-series-chart');
-    if (fc) {
-        fc.setOption({
-            tooltip: { trigger: 'item', formatter: '{b}: {c}' },
-            series: [{ type: 'funnel', left: '12%', right: '12%', top: 30, bottom: 10,
-                minSize: '20%', maxSize: '100%',
-                label: { color: '#e2e8f0', formatter: '{b}\n{c}' },
-                data: [
-                    { value: c.visits, name: '访问', itemStyle: { color: '#22d3ee' } },
-                    { value: c.add_cart, name: '加购', itemStyle: { color: '#6366f1' } },
-                    { value: c.orders, name: '下单', itemStyle: { color: '#fb7185' } },
-                ] }]
-        });
-    }
+    // 真实单品无 11 周序列数据，隐藏走势卡（仅演示单品展示该卡）
+    const scCard = document.getElementById('sku-series-card'); if (scCard) scCard.style.display = 'none';
     renderSkuDeep(buildRealCtx(s, rp));
 }
 function closeSkuModal() { document.getElementById('sku-modal').style.display = 'none'; }
+// ESC 关闭任意已打开的弹窗（含单品深度卡片）
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+        ['sku-modal', 'focus-product-modal', 'ogsm-config-modal', 'strategy-modal', 'exchange-modal'].forEach(function (id) {
+            const m = document.getElementById(id);
+            if (m && m.style.display === 'flex') m.style.display = 'none';
+        });
+    }
+});
 
 /* ===================================================================
    单品深度分析 · 三大板块：运营动作 / 建议 / 相关联产品
    =================================================================== */
-// 卖点词典（标题/类目 → 卖点标签），用于关联品判定与 OGSM 匹配
+// 卖点词典（标题/类目 卖点标签），用于关联品判定与 OGSM 匹配
 const SP_LEXICON = [
     ['旋转', 'rotat'], ['伸缩', 'telesc'], ['吸吮', 'suction'], ['震动', 'vibrat'],
     ['逼真', 'realistic'], ['自动', 'automat'], ['加热', 'heat'], ['静音', 'quiet'],
@@ -674,22 +671,37 @@ function relatedProducts(ctx, pool) {
         bounce: _avg(sameCat.map(function (p) { return p.current.bounce || 0; })),
     };
     const fp = (focal.current.avg_price || 1);
+    const fc = focal.current;
     const fsp = new Set(focal.sellingPoints);
     const scored = sameCat.map(function (p) {
         const priceDiff = Math.abs((p.current.avg_price || 0) - fp) / fp;
         const priceMatch = Math.max(0, 1 - priceDiff / 0.3);   // 30% 内线性
         const psp = new Set(p.sellingPoints);
-        let overlap = 0; fsp.forEach(function (k) { if (psp.has(k)) overlap++; });
+        let overlap = 0; const overlapPts = [];
+        fsp.forEach(function (k) { if (psp.has(k)) { overlap++; overlapPts.push(k); } });
         const score = priceMatch * 0.5 + (overlap > 0 ? 0.5 : 0) + overlap * 0.1;
-        return { p: p, priceDiff: priceDiff, overlap: overlap, score: score };
+        // 选品原因（为什么选它）
+        const reasons = ['同类目'];
+        const pdPct = priceDiff * 100;
+        reasons.push(pdPct <= 30 ? ('客单价相近(差' + pdPct.toFixed(0) + '%)') : ('客单价差' + pdPct.toFixed(0) + '%'));
+        if (overlap > 0) reasons.push('卖点相似:' + overlapPts.join('/'));
+        if (fc.conv != null && p.current.conv != null) {
+            const cd = Math.abs(fc.conv - p.current.conv) / Math.max(p.current.conv, 1e-9);
+            if (cd <= 0.15) reasons.push('转化率接近');
+        }
+        if (fc.uv != null && p.current.uv != null && fc.uv > 0 && p.current.uv > 0) {
+            const ur = Math.max(fc.uv, p.current.uv) / Math.min(fc.uv, p.current.uv);
+            if (ur <= 1.3) reasons.push('UV接近');
+        }
+        return { p: p, priceDiff: priceDiff, overlap: overlap, score: score, reasons: reasons };
     });
     scored.sort(function (a, b) { return b.score - a.score; });
     const items = scored.slice(0, 6).map(function (o) {
-        const p = o.p, cc = p.current, fc = focal.current;
+        const p = o.p, cc = p.current;
         return {
             sku: p.sku, name: p.name, category: p.category,
             conv: cc.conv, sales: cc.sales, uv: cc.uv, avg_price: cc.avg_price,
-            priceDiffPct: o.priceDiff * 100, overlap: o.overlap,
+            priceDiffPct: o.priceDiff * 100, overlap: o.overlap, reasons: o.reasons,
             cmpConv: cmp(fc.conv, cc.conv),
             cmpSales: cmp(fc.sales, cc.sales),
             cmpUv: cmp(fc.uv, cc.uv),
@@ -729,7 +741,7 @@ function buildSuggestions(ctx, catAvg) {
     }
     // 2) 转化率环比
     if (dl && dl.conv && dl.conv.abs !== undefined && dl.conv.abs < 0)
-        bullets.push({ t: `转化率环比下降 ${pct(-dl.conv.abs)}，建议关注详情页卖点表达、价格竞争力与评价体系，优化加购→下单链路。` });
+        bullets.push({ t: `转化率环比下降 ${pct(-dl.conv.abs)}，建议关注详情页卖点表达、价格竞争力与评价体系，优化加购下单链路。` });
     // 3) 低于同类目转化率
     if (catAvg && catAvg.conv && c.conv < catAvg.conv * 0.95)
         bullets.push({ t: `转化率 ${pct(c.conv)} 低于同类目均值 ${pct(catAvg.conv)}，矛盾在转化端，建议提升卖方信任度与流量精准度。` });
@@ -762,7 +774,7 @@ function renderSkuDeep(ctx) {
     const sug = buildSuggestions(ctx, rel.catAvg);
 
     // —— ① 运营动作 ——
-    let a = '<h4>🛠 运营动作 <span class="pill">2 类来源</span></h4>';
+    let a = '<h4>运营动作 <span class="pill">2 类来源</span></h4>';
     a += '<div class="section-hint">实际运营动作 = 系统抓取（可能暂无）；OGSM 运营动作 = 本月 OGSM 计划（复盘抓取源）。</div>';
     a += '<div class="deep-sub">① 实际运营动作（系统抓取）</div>';
     if (ctx.realActions && ctx.realActions.length) {
@@ -770,7 +782,7 @@ function renderSkuDeep(ctx) {
             return `<div class="action-item"><div class="ai-head">${(esc(x.date) || '')} · ${(esc(x.source) || '抓取')}</div><div class="ai-body">${esc(x.action)}</div></div>`;
         }).join('') + '</div>';
     } else {
-        a += '<div class="empty-note">暂无抓取到的实际运营动作（当前周期未接入抓取源；接入后将在此展示真实操作记录）。</div>';
+        a += '<div class="empty-note">无（当前周期未接入抓取源；接入后在此展示真实操作记录）。</div>';
     }
     a += '<div class="deep-sub">② OGSM 运营动作（本月计划）</div>';
     if (ogsm.length) {
@@ -779,12 +791,12 @@ function renderSkuDeep(ctx) {
         }).join('') + '</div>';
         a += `<div class="empty-note" style="margin-top:6px;">共匹配 ${ogsm.length} 条 OGSM 计划动作；OGSM 复盘时，抓取数据将取自本部分。</div>`;
     } else {
-        a += '<div class="empty-note">本月 OGSM 计划中暂无以本商品品类/店铺相关的运营动作。</div>';
+        a += '<div class="empty-note">无（本月 OGSM 计划中暂无本商品品类/店铺相关的运营动作）。</div>';
     }
     const aEl = document.getElementById('sku-modal-actions'); if (aEl) aEl.innerHTML = a;
 
     // —— ② 建议 ——
-    let sHtml = '<h4>💡 建议 <span class="pill">规则引擎</span></h4>';
+    let sHtml = '<h4>建议 <span class="pill">规则引擎</span></h4>';
     sHtml += `<div class="suggest-summary">${sug.summary}</div>`;
     sHtml += '<div class="suggest-list">' + sug.bullets.map(function (b) {
         return `<div class="suggest-item">${esc(b.t)}</div>`;
@@ -792,14 +804,15 @@ function renderSkuDeep(ctx) {
     const sEl = document.getElementById('sku-modal-suggest'); if (sEl) sEl.innerHTML = sHtml;
 
     // —— ③ 相关联产品 ——
-    let rHtml = '<h4>🔗 相关联产品情况 <span class="pill">同类目·同客单价·卖点相似</span></h4>';
+    let rHtml = '<h4>相关联产品情况 <span class="pill">同类目·同客单价·卖点相似</span></h4>';
     if (rel.items.length) {
         rHtml += `<div class="section-hint">对照同类目 ${rel.items.length} 个关联品：本商品转化率/销售额/UV 高于或低于关联品（见标签）。</div>`;
-        rHtml += '<table class="rel-table"><thead><tr><th>关联品</th><th>转化率</th><th>销售额</th><th>UV</th><th>客单价</th><th>对比（本 vs 关联）</th></tr></thead><tbody>';
+        rHtml += '<table class="rel-table"><thead><tr><th>关联品</th><th>转化率</th><th>销售额</th><th>UV</th><th>客单价</th><th>对比（本 vs 关联）</th><th>关联原因</th></tr></thead><tbody>';
         rel.items.forEach(function (it) {
             rHtml += `<tr><td><div class="rel-name">${esc(it.name || it.sku)}</div><div style="font-size:11px;color:var(--radium-text-muted);">${esc(it.sku)}</div></td>` +
                 `<td>${pct(it.conv)}</td><td>${money(it.sales)}</td><td>${it.uv != null ? num(it.uv) : '—'}</td><td>${money(it.avg_price)}</td>` +
-                `<td class="cmp-cell">转化${cmpTag(it.cmpConv)}销售${cmpTag(it.cmpSales)}UV${it.uv != null ? cmpTag(it.cmpUv) : ''}</td></tr>`;
+                `<td class="cmp-cell">转化${cmpTag(it.cmpConv)}销售${cmpTag(it.cmpSales)}UV${it.uv != null ? cmpTag(it.cmpUv) : ''}</td>` +
+                `<td class="rel-reason">${(it.reasons || []).map(function (r) { return '<span class="rel-reason-tag">' + esc(r) + '</span>'; }).join('')}</td></tr>`;
         });
         rHtml += '</tbody></table>';
         if (rel.catAvg) {
@@ -808,7 +821,7 @@ function renderSkuDeep(ctx) {
                 `本商品转化${cmpTag(cmp(fc.conv, rel.catAvg.conv))}销售${cmpTag(cmp(fc.sales, rel.catAvg.sales))}UV${fc.uv != null ? cmpTag(cmp(fc.uv, rel.catAvg.uv)) : ''}均值</div>`;
         }
     } else {
-        rHtml += '<div class="empty-note">同类目下暂无其他关联产品可对照（本品类在池中唯一）。</div>';
+        rHtml += '<div class="empty-note">无（同类目下暂无其他关联产品可对照）。</div>';
     }
     const rEl = document.getElementById('sku-modal-related'); if (rEl) rEl.innerHTML = rHtml;
 }
@@ -842,7 +855,7 @@ function renderProductFocus() {
     const cfg = getFocusConfig();
     const box = document.getElementById('focus-product-list');
     if (!cfg || !cfg.length) {
-        box.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🎯</div>
+        box.innerHTML = `<div class="empty-state"><div class="empty-state-icon"></div>
             <div class="empty-state-title">暂无重点单品</div>
             <div class="empty-state-desc">点击"重点单品配置"，搜索并勾选需要监控的 SKU（支持按预估TopN批量选）</div></div>`;
         return;
@@ -1303,7 +1316,7 @@ function renderOgsmReal() {
     const o = appData.ogsm_july;
     const box = document.getElementById('ogsms-real');
     if (!o || !o.rows || !o.rows.length) {
-        box.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">暂无真实OGSM数据</div><div class="empty-state-desc">需将「商品部 26年-7月OGSM」CSV 放入 data/ 目录后重新生成</div></div>';
+        box.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">暂无真实OGSM数据</div><div class="empty-state-desc">需将「商品部 26年-7月OGSM」CSV 放入 data/ 目录后重新生成</div></div>';
         return;
     }
     const meta = document.getElementById('ogsms-real-meta');
@@ -1388,16 +1401,16 @@ function generateStrategy() {
     const ranked = appData.strategies.map(s => ({ s, ...scoreStrategy(s, purpose, site, idea) }))
         .filter(x => x.sig.length > 0 || x.score > 30).sort((a, b) => b.score - a.score).slice(0, 5);
     const box = document.getElementById('strategy-result');
-    if (!ranked.length) { box.innerHTML = `<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">未匹配到强相关策略</div><div class="empty-state-desc">可调整目的/想法，或在策略库中补充相关策略</div></div>`; return; }
+    if (!ranked.length) { box.innerHTML = `<div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">未匹配到强相关策略</div><div class="empty-state-desc">可调整目的/想法，或在策略库中补充相关策略</div></div>`; return; }
     box.innerHTML = ranked.map((x, i) => `<div class="card" style="margin-bottom:12px;">
         <div class="card-header" style="display:flex;justify-content:space-between;">
             <div class="card-title">${i + 1}. ${esc(x.s.name)}</div>
             <span class="tag tag-${x.s.effect === '有效' ? 'green' : x.s.effect === '部分有效' ? 'cyan' : 'red'}">${x.s.effect}</span></div>
         <div class="card-body" style="font-size:13px;line-height:1.7;">
-            <div>🎯 成功率评定：<b>${x.score}</b>/100 ｜ 优先级 ${esc(x.s.priority)}</div>
-            <div>✨ 关键事项：${(x.s.keyPoints || []).map(k => '·' + esc(k)).join(' ') || '—'}</div>
-            <div>💡 为什么用这个策略：${esc(x.s.why)}</div>
-            <div>📐 如何写成OGSM：${esc(x.s.ogsm)}</div>
+            <div>成功率评定：<b>${x.score}</b>/100 ｜ 优先级 ${esc(x.s.priority)}</div>
+            <div>关键事项：${(x.s.keyPoints || []).map(k => '·' + esc(k)).join(' ') || '—'}</div>
+            <div>为什么用这个策略：${esc(x.s.why)}</div>
+            <div>如何写成OGSM：${esc(x.s.ogsm)}</div>
         </div></div>`).join('');
     renderStrategyCharts();
 }
@@ -1442,7 +1455,7 @@ function renderStrategyLib() {
             <div>推荐理由：${esc(s.why)}</div></div></div>`).join('') || '<div class="empty-state">无匹配策略</div>';
 }
 function rateStrategy(i) { const v = prompt('请输入评分(0-100)：', appData.strategies[i].score); if (v != null) { appData.strategies[i].score = parseInt(v) || 0; renderStrategyLib(); } }
-function openStrategyModal() { document.getElementById('strategy-modal').style.display = 'flex'; document.getElementById('strategy-modal-title').textContent = '➕ 添加策略'; }
+function openStrategyModal() { document.getElementById('strategy-modal').style.display = 'flex'; document.getElementById('strategy-modal-title').textContent = '添加策略'; }
 function closeStrategyModal() { document.getElementById('strategy-modal').style.display = 'none'; }
 function submitStrategy() {
     const s = { name: document.getElementById('sm-name').value, type: document.getElementById('sm-type').value, stage: document.getElementById('sm-stage').value,
