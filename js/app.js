@@ -1486,97 +1486,222 @@ function saveExchangeRates() {
 window.addEventListener('resize', () => { chartRegistry.forEach(c => { try { c.resize(); } catch (e) {} }); });
 
 /* ===================================================================
- * 数据来源 / 公式 说明（点击各板块"来源 / 公式"查看）
- * 标记：real=真源(直接来自源文件) / demo=合成或占位(非真源) / mixed=混合
+ * 数据来源 / 计算方式 说明（点击各板块"来源 / 公式"查看）
+ * 两套标记：
+ *   badge  = 数据真伪（real=真源 / demo=合成占位 / mixed=混合）
+ *   method = 计算方式（source=源数据直填 / ai=AI预计算 / frontend=前端计算 / combined=两者结合）
  * =================================================================== */
+const METHOD_META = {
+  source:   { label: '源数据直填', cls: 'm-source',   desc: '直接来自源文件（xlsx/CSV），无计算' },
+  ai:       { label: 'AI预计算',   cls: 'm-ai',       desc: 'build_data.py 预算后写入 data.json，前端只读取展示' },
+  frontend: { label: '前端计算',   cls: 'm-fe',       desc: 'app.js 从 data.json 取数后实时计算（透明可验证、可编辑重算）' },
+  combined: { label: '两者结合',   cls: 'm-combined', desc: '部分指标AI预算 + 部分指标前端实时计算' }
+};
+
 const DERIVATIONS = {
-  site: {
-    title: '站点汇总 / 单店铺深度', badge: 'mixed',
-    source: '目标销售额：xlsx《6月目标与规则》→"销售额目标"表（真源；含 7月则真，否则 demo 兜底）。实际销售额/订单：build_data.py 按 SKU 级求和聚合。注：AC美/UK英/EU欧 三站的实际额与渠道占比为合成 demo；仅 BV美 单品为真实 CSV。',
-    formulas: [
-      '目标进度 = 实际销售额 / 目标销售额 × 100',
-      '时间进度 = 当月已过天数 / 当月天数（7月 = 45.2%）',
-      '超前/滞后 = 实际销售额 − 目标销售额 × 时间进度',
-      '客单价 = 销售额 / 订单数',
-      '分渠道/类目/分层 = 各 SKU 按维度累加（渠道占比经完整性校验，合计=总量）'
+  'site|all': {
+    title: '站点汇总 - 全部站点', badge: 'mixed', method: 'combined',
+    source: '目标销售额：xlsx《6月目标与规则》"销售额目标"表（真源）。实际销售额/订单：build_data.py 按 SKU 级求和聚合。BV美=真实CSV，AC美/UK英/EU欧=合成demo。',
+    metrics: [
+      { n: '目标销售额', m: 'source', f: 'xlsx -> data.json（直填，无计算）' },
+      { n: '实际销售额', m: 'ai', f: 'Sigma SKU.actual_sales（aggregate）' },
+      { n: '实际订单数', m: 'ai', f: 'Sigma SKU.actual_orders' },
+      { n: '目标进度(Hero卡)', m: 'frontend', f: 'actual / target x 100（targetHeroHTML 实时算）' },
+      { n: '目标进度(表格)', m: 'ai', f: '同公式，build_data.py 预算 -> data.json' },
+      { n: '时间进度', m: 'ai', f: '已过天数/当月天数（7月=14/31=45.2%）' },
+      { n: '超前/滞后(Hero卡)', m: 'frontend', f: 'actual - target x tp/100' },
+      { n: '超前/滞后(表格)', m: 'ai', f: '同公式，build_data.py 预算 -> data.json' },
+      { n: '客单价', m: 'ai', f: 'sales / orders（aggregate）' },
+      { n: '环比', m: 'ai', f: '(本月/tp - 上月) / 上月 x 100（mom函数）' },
+      { n: '渠道销售额', m: 'ai', f: 'Sigma SKU.channels[ch].sales' },
+      { n: '渠道占比', m: 'frontend', f: 'channel.sales / total x 100（brkRow）' },
+      { n: '类目/分层销售额', m: 'ai', f: 'Sigma SKU by category/layer' }
     ],
-    code: 'build_data.py::load_real_targets / aggregate / fix_channel_integrity ；app.js::renderSiteAll / renderSiteDetail'
+    note: '目标进度/超前滞后在Hero卡中已前端实时计算；表格中用的是AI预算值。建议统一为前端计算，消除不一致。',
+    code: 'build_data.py::aggregate；app.js::renderSiteAll / targetHeroHTML / brkRow'
   },
-  category: {
-    title: '类目汇总 / 类目深度', badge: 'mixed',
-    source: '实际销售额/订单：聚合（真源 BV美 + 合成 其他站）。类目目标销售额 = 类目目标单量 × 类目基准客单价 AOV[类目]，属合成公式（非 xlsx 真源）。环比：本月(按全月节奏) vs 上月全月。',
-    formulas: [
-      '类目目标销售额 = 类目目标单量 × AOV[类目]（飞机杯72 / 增大器118 / 龟头训练器58）',
-      '目标进度 = 实际销售额 / 类目目标销售额 × 100',
-      '环比 = (本月销售额 ÷ 时间进度 − 上月销售额) / 上月销售额 × 100'
+  'site|detail': {
+    title: '站点深度 - 单店铺', badge: 'mixed', method: 'combined',
+    source: '同站点汇总，按单站点拆分。渠道占比BV美=真实Excel，其他站=合成。SKU列表从 sku_master 过滤。',
+    metrics: [
+      { n: '各指标(Hero卡)', m: 'combined', f: '同站点汇总，按 site 过滤' },
+      { n: '渠道明细占比', m: 'frontend', f: 'channel.sales / site.sales x 100（brkRow）' },
+      { n: '类目明细占比', m: 'frontend', f: 'category.sales / site.sales x 100（brkRow）' },
+      { n: '分层明细占比', m: 'frontend', f: 'layer.sales / site.sales x 100（brkRow）' },
+      { n: 'SKU列表进度', m: 'frontend', f: 'actual_orders / target_orders x 100（inline）' }
     ],
-    code: 'build_data.py::aggregate(by_category) / mom ；app.js::renderCategoryAll / renderCategoryDetail'
+    code: 'app.js::renderSiteDetail / brkRow / renderShopSkuTable'
   },
-  product: {
-    title: '商品 / 结构层 / 重点单品监控', badge: 'mixed',
-    source: 'BV美 单品：CSV《商品-周期数据监控_本/上周期》真实 22 字段 + 本/上环比（真源）。AC美/UK英/EU欧 单品：build_data.py 合成（noise + 缩放对齐目标，demo）。重点单品勾选存 localStorage。',
-    formulas: [
-      'SKU 实际销售额 = 订单数 × 客单价(AOV × 噪声)',
-      '单品进度 = 实际单量 / 目标单量 × 100',
-      '加权转化率 = Σ(单品转化率 × 订单数) / Σ订单数'
+  'category|all': {
+    title: '类目汇总', badge: 'mixed', method: 'combined',
+    source: '实际：aggregate by_category。类目目标销售额=目标单量xAOV（合成公式，非xlsx真源）。',
+    metrics: [
+      { n: '类目目标销售额', m: 'ai', f: 'target_orders x AOV[类目]（合成，非真源）' },
+      { n: '类目实际销售额', m: 'ai', f: 'Sigma SKU.actual_sales by category' },
+      { n: '目标进度', m: 'ai', f: 'actual / target x 100 -> data.json' },
+      { n: '环比', m: 'ai', f: '(本月/tp - 上月) / 上月 x 100（mom）' },
+      { n: '分店铺类目柱图', m: 'ai', f: 'by_category[c].by_site[s].sales -> data.json' }
     ],
-    code: 'build_data.py::build_sku_month / aggregate(by_layer) ；app.js::renderProductAll / renderProductLayer / renderProductFocus'
+    note: '类目目标是合成公式（单量xAOV），不是xlsx真源。若xlsx有类目级目标，应替换为真源。',
+    code: 'build_data.py::aggregate(by_category)；app.js::renderCategoryAll'
   },
-  operations: {
-    title: '运营动作 / 投放动作', badge: 'demo',
-    source: '当前为 SAMPLE 占位数据（app.js::getOpsSample / getAdsSample），非真源。待接入钉钉抓取源后替换；当前不可用于决策。',
-    formulas: ['（占位）接入真实抓取后，按 人/时间/类目/渠道 摘取并展示'],
-    code: 'app.js::getOpsSample / getAdsSample（占位，待替换）'
-  },
-  ogsms: {
-    title: 'OGSM 周复盘', badge: 'mixed',
-    source: '真实OGSM：data/ogsm_july_raw.csv（商品部 7月飞机杯，真源）→ D/状态/检查/下一步 为 CSV 原文直填，无计算；状态仅文本→颜色映射。生成周复盘：配置(localStorage 可编辑) + 预聚合 actuals。',
-    formulas: [
-      '生成-进度 = 实际 / 目标 × 100（实际取自预聚合销售额）',
-      '生成-状态 = 进度 − 时间进度（≥0 超前 / <0 滞后）',
-      '生成-检查 = 按 站点/类目/分层/渠道 交叉拆解缺口（buildOgsmCheck）'
+  'category|detail': {
+    title: '类目深度', badge: 'mixed', method: 'frontend',
+    source: '从 sku_master 实时过滤聚合（支持店铺/分层二次切分）。数据源同上。',
+    metrics: [
+      { n: '目标销售额', m: 'frontend', f: 'Sigma(target_orders x aov)（list.reduce）' },
+      { n: '实际销售额', m: 'frontend', f: 'Sigma actual_sales（list.reduce）' },
+      { n: '目标进度', m: 'frontend', f: 'sales / targetSales x 100' },
+      { n: '超前/滞后', m: 'frontend', f: 'sales - targetSales x tp/100' },
+      { n: '客单价', m: 'frontend', f: 'sales / orders' },
+      { n: '结构单量', m: 'frontend', f: 'list.filter(layer).reduce(orders)' },
+      { n: '渠道单量', m: 'frontend', f: 'list.reduce(channels[ch].orders)' },
+      { n: '分店铺单量', m: 'frontend', f: 'list.filter(site).reduce(orders)' },
+      { n: '单品进度', m: 'frontend', f: 'actual_orders / target_orders x 100' }
     ],
-    code: 'build_data.py::build_ogsm_july / build_ogsm_config ；app.js::computeOgsmData / buildOgsmCheck / renderOgsmReal'
+    note: '本板块全部前端实时计算，是"能前端就前端"的最佳实践示例。编辑参数可即时重算。',
+    code: 'app.js::renderCategoryDetail（全部从 sku_master 实时聚合）'
   },
-  monthly: {
-    title: '月度复盘', badge: 'mixed',
-    source: '复用预聚合 actuals（真源 BV美 + 合成 其他站）；报告由模板拼装，非独立源。',
-    formulas: ['报告 = 总销售额 / 目标 / 目标进度 / 环比 / 类目结构 / 问题分析，由 generateMonthlyReview 拼装'],
-    code: 'app.js::generateMonthlyReview'
-  },
-  strategy: {
-    title: '策略生成器 / 策略库', badge: 'demo',
-    source: '策略库为内置示例 + localStorage 新增（非业务真源）；生成按历史策略库打分匹配。',
-    formulas: ['策略评分 = 按 目的/站点/类目 匹配历史有效策略，给建议/成功率/为什么/OGSM'],
-    code: 'app.js::generateStrategy / renderStrategyLib'
-  },
-  'sku-deep|related': {
-    title: '相关联产品（同类目·同客单价·卖点相似）', badge: 'mixed',
-    source: '数据：BV美 本周期 CSV（真源）。判定：JS 规则引擎（relatedProducts）。',
-    formulas: [
-      '同类目：必须相同（硬条件）',
-      '客单价匹配 = max(0, 1 − |Δ客单价| / 30%) × 0.5',
-      '卖点重叠：标题/分类词重叠 +0.5 + 重叠数×0.1',
-      '综合 score = 客单价匹配 + 卖点重叠；取 Top6',
-      '关联原因 = 同类目 / 客单价差X% / 卖点相似:xx / 转化率接近 / UV接近'
+  'product|all': {
+    title: '商品 - 全部', badge: 'mixed', method: 'frontend',
+    source: '从 sku_master 实时过滤聚合。BV美=真实CSV，其他站=合成。',
+    metrics: [
+      { n: '结构分布(饼图)', m: 'frontend', f: 'list.filter(layer).reduce(sales)' },
+      { n: '目标 vs 实际(柱图)', m: 'frontend', f: 'list.reduce by layer' },
+      { n: '单品进度', m: 'frontend', f: 'actual_orders / target_orders x 100' }
     ],
-    code: 'app.js::relatedProducts'
+    code: 'app.js::renderProductAll'
+  },
+  'product|layer': {
+    title: '商品 - 分层', badge: 'mixed', method: 'combined',
+    source: '分层汇总：aggregate by_layer（AI预算）。分站点转化率：前端实时算。',
+    metrics: [
+      { n: '目标单量', m: 'ai', f: 'Sigma target_orders by layer -> data.json' },
+      { n: '实际单量', m: 'ai', f: 'Sigma actual_orders by layer -> data.json' },
+      { n: '转化率(加权)', m: 'ai', f: 'Sigma(conv x orders) / Sigma(orders) -> data.json' },
+      { n: '销售额', m: 'ai', f: 'Sigma actual_sales by layer -> data.json' },
+      { n: 'SKU数', m: 'ai', f: 'count by layer -> data.json' },
+      { n: '分站点销售额/单量', m: 'ai', f: 'by_layer[l].by_site -> data.json' },
+      { n: '分站点转化率', m: 'frontend', f: '从 sku_master 重新聚合: Sigma(conv x orders)/Sigma(orders) by site+layer' }
+    ],
+    note: '分站点转化率已前端重算（不依赖data.json预算值）。其他分层指标可同样前端化。',
+    code: 'build_data.py::aggregate(by_layer)；app.js::renderProductLayer'
+  },
+  'product|focus': {
+    title: '重点单品监控', badge: 'mixed', method: 'frontend',
+    source: '真实单品(BV美)：CSV本/上周期（真源）。演示单品：sku_master（合成）。勾选配置存localStorage。',
+    metrics: [
+      { n: '周期目标单量', m: 'frontend', f: 'target_orders x cycDays / monthDays' },
+      { n: '进度', m: 'frontend', f: 'actual_orders / 周期目标 x 100' },
+      { n: '超前/滞后', m: 'frontend', f: 'actual_orders - 周期目标' },
+      { n: '真实单品22字段', m: 'source', f: 'CSV->build_data.py->data.json->前端直显' },
+      { n: '本/上环比', m: 'ai', f: '(本-上)/上 x 100（_mk_delta）' }
+    ],
+    code: 'app.js::renderProductFocus / focusRealCard / focusDemoCard'
+  },
+  'sku-deep|metrics': {
+    title: '单品深度 - 指标卡 + 环比表', badge: 'mixed', method: 'combined',
+    source: '真实单品(BV美)：本周期CSV 22字段（真源）+ 上周期CSV环比。演示单品：sku_master合成。',
+    metrics: [
+      { n: '销售额/单量/转化率等22字段', m: 'source', f: 'CSV->build_data.py->data.json->前端直显' },
+      { n: '本/上环比(逐字段)', m: 'ai', f: '_mk_delta: abs=本-上, rel=(本-上)/上 x 100' },
+      { n: '比率型(转化率/加购率等)差值', m: 'ai', f: 'abs=本-上(百分点), rel=null' },
+      { n: '演示单品指标', m: 'ai', f: 'build_sku_month: target x tp x noise, aov=AOV x noise' },
+      { n: '11周走势(演示)', m: 'ai', f: 'build_series: 等分+交替噪声' }
+    ],
+    note: '22字段为CSV源数据直填，零计算误差。环比差值可前端化（公式简单：本-上）。',
+    code: 'build_data.py::_read_period / _mk_delta / build_series；app.js::renderRealSkuModal / openSkuModal'
+  },
+  'sku-deep|actions': {
+    title: '单品深度 - 运营动作', badge: 'mixed', method: 'combined',
+    source: '1.实际运营动作=系统抓取（当前未接入->显示"无"）。2.OGSM运营动作=本月OGSM计划CSV。',
+    metrics: [
+      { n: '实际运营动作', m: 'source', f: '待接入抓取源（当前空）' },
+      { n: 'OGSM匹配动作', m: 'frontend', f: 'matchOgsmActions: 店铺匹配+卖点/类目文本重叠打分, Top8' }
+    ],
+    code: 'app.js::matchOgsmActions'
   },
   'sku-deep|suggest': {
-    title: '建议（规则引擎）', badge: 'mixed',
-    source: '数据：BV美 本/上周期 CSV（真源）。逻辑：JS 规则引擎（buildSuggestions）。',
-    formulas: [
-      '销售额环比 = (本−上) / 上 ；<0 提示排查',
-      '转化率：环比下降 或 低于同类目均值×0.95 → 提示优化',
-      '跳出率>类目均值×1.05 / 加购不低但结账<0.5 / 客单价偏离±15% / UV足转化弱 → 对应建议'
+    title: '单品深度 - 建议', badge: 'mixed', method: 'frontend',
+    source: '数据：BV美本/上周期CSV（真源）。逻辑：JS规则引擎（7条规则）。',
+    metrics: [
+      { n: '基础总结', m: 'frontend', f: '拼装：销售额+转化率+访客+趋势词' },
+      { n: '建议(7条规则)', m: 'frontend', f: 'buildSuggestions: 销售额下滑/转化率降/低于类目均值/跳出率高/加购不低结账低/客单价偏离/UV足转化弱' }
     ],
     code: 'app.js::buildSuggestions'
   },
-  'sku-deep|actions': {
-    title: '运营动作（2 类来源）', badge: 'mixed',
-    source: '①实际运营动作 = 系统抓取源（当前周期未接入 → 显示"无"）。②OGSM 运营动作 = 本月 OGSM 计划（matchOgsmActions 文本匹配：店铺须匹配 + 卖点/类目重叠打分）。',
-    formulas: ['OGSM 匹配 score = Σ(板块/目的/目标/策略/计划 文本 与 本商品卖点/类目 的词重叠数)，取 Top8'],
-    code: 'app.js::matchOgsmActions'
+  'sku-deep|related': {
+    title: '单品深度 - 相关联产品', badge: 'mixed', method: 'frontend',
+    source: '数据：BV美本周期CSV（真源）。判定：JS规则引擎。',
+    metrics: [
+      { n: '同类目筛选', m: 'frontend', f: 'category相同（硬条件）' },
+      { n: '客单价匹配', m: 'frontend', f: 'max(0, 1-|Delta|/30%) x 0.5' },
+      { n: '卖点重叠', m: 'frontend', f: '标题/分类词重叠 +0.5 + 重叠数x0.1' },
+      { n: '综合评分', m: 'frontend', f: '客单价匹配 + 卖点重叠, 取Top6' },
+      { n: '关联原因', m: 'frontend', f: '同类目/客单价差X%/卖点相似/转化率接近/UV接近' },
+      { n: '高于/低于对比', m: 'frontend', f: 'cmp(a,b): 差<=2%持平, 否则above/below' }
+    ],
+    code: 'app.js::relatedProducts / cmp'
+  },
+  'operations|ops': {
+    title: '运营动作', badge: 'demo', method: 'frontend',
+    source: '当前为 SAMPLE 占位数据（getOpsSample 随机生成120条），非真源。待接入钉钉抓取。',
+    metrics: [
+      { n: '全部字段', m: 'frontend', f: 'getOpsSample: 随机生成时间/站点/类目/类型/状态/效果' }
+    ],
+    note: '接入真实抓取后，这些数据将变为 source 类型。',
+    code: 'app.js::getOpsSample（占位，待替换）'
+  },
+  'operations|ads': {
+    title: '投放动作', badge: 'demo', method: 'frontend',
+    source: '当前为 SAMPLE 占位数据（getAdsSample 随机生成90条），非真源。',
+    metrics: [
+      { n: '全部字段', m: 'frontend', f: 'getAdsSample: 随机生成花费/点击/转化/ROI' },
+      { n: '总花费/总转化/ROI', m: 'frontend', f: 'list.reduce + 乘除法' }
+    ],
+    code: 'app.js::getAdsSample / renderAds'
+  },
+  'review|ogsms': {
+    title: 'OGSM 周复盘', badge: 'mixed', method: 'combined',
+    source: '真实OGSM：data/ogsm_july_raw.csv（真源）-> CSV原文直填，无计算。生成周复盘：配置(localStorage可编辑) + 预聚合actuals。',
+    metrics: [
+      { n: '真实OGSM 56行', m: 'source', f: 'CSV->build_data.py->data.json->前端直显（无计算）' },
+      { n: '状态颜色', m: 'frontend', f: '文本->颜色映射(滞后红/超前绿/正常青/未开始黄)' },
+      { n: '生成-进度', m: 'frontend', f: 'computeOgsmData: actual/target x 100（从data.json取actual）' },
+      { n: '生成-状态', m: 'frontend', f: '进度-时间进度(>=0超前/<0滞后)' },
+      { n: '生成-检查(交叉分析)', m: 'frontend', f: 'buildOgsmCheck: 按站点/类目/分层/渠道交叉拆解缺口' },
+      { n: 'D/检查填写', m: 'source', f: '用户手动输入->localStorage' }
+    ],
+    note: '生成周复盘的进度/状态/检查全部前端实时计算，是交叉分析的典型示例。',
+    code: 'build_data.py::build_ogsm_july；app.js::computeOgsmData / buildOgsmCheck / renderOgsmReal'
+  },
+  'review|monthly': {
+    title: '月度复盘', badge: 'mixed', method: 'frontend',
+    source: '复用预聚合actuals。报告由模板拼装。',
+    metrics: [
+      { n: '总销售额/目标/进度/缺口', m: 'frontend', f: '从 actuals[m].total 读取+格式化' },
+      { n: '分店铺/类目/结构表', m: 'frontend', f: '从 actuals[m].by_site/by_category/by_layer 读取' },
+      { n: '问题分析', m: 'frontend', f: '模板拼装: filter(gap<0) + 建议文案' }
+    ],
+    code: 'app.js::generateMonthlyReview'
+  },
+  'strategy|gen': {
+    title: '策略生成器', badge: 'demo', method: 'frontend',
+    source: '策略库为内置示例+localStorage新增。生成按打分匹配。',
+    metrics: [
+      { n: '策略评分', m: 'frontend', f: 'scoreStrategy: 目的匹配+类型+优先级+效果+站点+想法关键词' },
+      { n: '成功率图表', m: 'frontend', f: '(有效+部分有效x0.5) / 该类总数 x 100' }
+    ],
+    code: 'app.js::generateStrategy / scoreStrategy / renderStrategyCharts'
+  },
+  'strategy|lib': {
+    title: '策略库', badge: 'demo', method: 'frontend',
+    source: '内置示例+localStorage。可手动评分。',
+    metrics: [
+      { n: '策略列表', m: 'frontend', f: 'filter by type/effect -> 显示' },
+      { n: '手动评分', m: 'source', f: '用户输入->localStorage' }
+    ],
+    code: 'app.js::renderStrategyLib / rateStrategy'
   }
 };
 
@@ -1591,7 +1716,7 @@ function attachDerivation(id, page, sub) {
     actions.className = 'page-actions';
     header.appendChild(actions);
   }
-  if (actions.querySelector('.deriv-btn')) return; // 幂等
+  if (actions.querySelector('.deriv-btn')) return;
   const btn = document.createElement('button');
   btn.className = 'deriv-btn';
   btn.textContent = '来源 / 公式';
@@ -1600,7 +1725,12 @@ function attachDerivation(id, page, sub) {
 }
 
 function derivationEntry(page, sub) {
-  if (DERIVATIONS[page + '|' + sub]) return DERIVATIONS[page + '|' + sub];
+  let key = page + '|' + sub;
+  if (DERIVATIONS[key]) return DERIVATIONS[key];
+  if (page === 'site' && sub !== 'all') key = 'site|detail';
+  else if (page === 'category' && sub !== 'all') key = 'category|detail';
+  else if (page === 'product' && sub !== 'all' && sub !== 'focus') key = 'product|layer';
+  if (DERIVATIONS[key]) return DERIVATIONS[key];
   if (DERIVATIONS[page]) return DERIVATIONS[page];
   return null;
 }
@@ -1611,14 +1741,27 @@ function openDerivation(page, sub) {
   if (!e || !box) return;
   const badgeCls = { real: 'badge-real', demo: 'badge-demo', mixed: 'badge-mixed' }[e.badge] || 'badge-mixed';
   const badgeTxt = { real: '真源', demo: '合成/占位', mixed: '混合' }[e.badge] || '混合';
+  const mMeta = METHOD_META[e.method] || METHOD_META.combined;
+  const metricsHtml = (e.metrics || []).map(function (m) {
+    const mm = METHOD_META[m.m] || METHOD_META.combined;
+    return '<tr><td class="dm-name">' + esc(m.n) + '</td>' +
+      '<td><span class="method-badge ' + mm.cls + '">' + mm.label + '</span></td>' +
+      '<td class="dm-formula">' + esc(m.f) + '</td></tr>';
+  }).join('');
   document.getElementById('deriv-title').textContent = e.title;
   document.getElementById('deriv-body').innerHTML =
-    '<div class="deriv-block"><span class="badge ' + badgeCls + '">' + badgeTxt + '</span></div>' +
+    '<div class="deriv-block"><div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">' +
+      '<span class="badge ' + badgeCls + '">' + badgeTxt + '</span>' +
+      '<span class="method-badge ' + mMeta.cls + '">' + mMeta.label + '</span>' +
+      '<span class="deriv-method-desc">' + esc(mMeta.desc) + '</span>' +
+    '</div></div>' +
     '<div class="deriv-block"><div class="deriv-label">数据来源</div><div class="deriv-src">' + esc(e.source) + '</div></div>' +
-    '<div class="deriv-block"><div class="deriv-label">计算公式 / 判定逻辑</div><div class="deriv-formula">' +
-      e.formulas.map(function (f) { return esc(f); }).join('<br>') + '</div></div>' +
+    (metricsHtml ? '<div class="deriv-block"><div class="deriv-label">指标计算方式（逐项）</div>' +
+      '<table class="deriv-metrics-table"><thead><tr><th>指标</th><th>计算方式</th><th>公式 / 来源</th></tr></thead><tbody>' +
+      metricsHtml + '</tbody></table></div>' : '') +
+    (e.note ? '<div class="deriv-block"><div class="deriv-label">备注</div><div class="deriv-note-box">' + esc(e.note) + '</div></div>' : '') +
     '<div class="deriv-block"><div class="deriv-label">代码位置</div><div class="deriv-code">' + esc(e.code) + '</div></div>' +
-    '<div class="deriv-note">说明：标"真源"的数字直接来自你提供的源文件；标"合成/占位"为演示或待接入数据，不可直接用于决策。</div>';
+    '<div class="deriv-note">计算方式说明：源数据直填=直接来自源文件无计算；AI预计算=build_data.py预算写入data.json；前端计算=app.js实时算（透明可验证）。标"真源"的数字直接来自你提供的源文件；标"合成/占位"为演示数据。</div>';
   box.style.display = 'flex';
 }
 function closeDerivation() { const b = document.getElementById('deriv-modal'); if (b) b.style.display = 'none'; }
