@@ -552,6 +552,7 @@ function openSkuModal(code, site) {
         xAxis: { type: 'category', data: ser.map(s => s.date), axisLabel: { color: '#94a3b8', rotate: 45 } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8' } },
         series: [{ type: 'line', smooth: true, data: ser.map(s => s.qty), areaStyle: { opacity: 0.15 }, itemStyle: { color: '#22d3ee' }, lineStyle: { width: 2 } }] });
+    renderSkuDeep(buildDemoCtx(r, code, site));
 }
 function renderRealSkuModal(s, rp) {
     document.getElementById('sku-modal').style.display = 'flex';
@@ -602,8 +603,236 @@ function renderRealSkuModal(s, rp) {
                 ] }]
         });
     }
+    renderSkuDeep(buildRealCtx(s, rp));
 }
 function closeSkuModal() { document.getElementById('sku-modal').style.display = 'none'; }
+
+/* ===================================================================
+   单品深度分析 · 三大板块：运营动作 / 建议 / 相关联产品
+   =================================================================== */
+// 卖点词典（标题/类目 → 卖点标签），用于关联品判定与 OGSM 匹配
+const SP_LEXICON = [
+    ['旋转', 'rotat'], ['伸缩', 'telesc'], ['吸吮', 'suction'], ['震动', 'vibrat'],
+    ['逼真', 'realistic'], ['自动', 'automat'], ['加热', 'heat'], ['静音', 'quiet'],
+    ['充气', 'inflat'], ['真空', 'vacuum'], ['口袋', 'pocket'], ['娃娃', 'doll'],
+    ['臀', 'butt'], ['阴道', 'vagina'], ['口交', 'oral'], ['电动', 'electric'],
+    ['充电', 'recharge'], ['便携', 'portable'], ['硅胶', 'silicone'], ['tpe', 'tpe'],
+    ['深喉', 'throat'], ['多档', 'multi'], ['远程', 'remote'], ['app', 'app'],
+    ['飞机杯', 'masturbator'], ['吸盘', 'cup'], ['增大', 'enlarge'], ['男用', 'male'],
+    ['女用', 'female'], ['情侣', 'couple'], ['震动棒', 'vibrator'], ['跳蛋', 'egg'],
+    ['肛塞', 'plug'], ['前列腺', 'prostate'], ['润滑剂', 'lube'], ['穿戴', 'strap'],
+];
+function extractSellingPoints(text) {
+    const t = (text || '').toLowerCase();
+    const out = [];
+    SP_LEXICON.forEach(function (p) {
+        if (t.indexOf(p[0].toLowerCase()) >= 0 || (p[1] && t.indexOf(p[1].toLowerCase()) >= 0)) out.push(p[0]);
+    });
+    return out;
+}
+function _avg(arr) { return arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0; }
+// 本 vs 对照：高于/低于/持平
+function cmp(a, b) {
+    if (a == null || b == null) return 'flat';
+    const d = a - b;
+    if (Math.abs(d) <= Math.abs(b) * 0.02 + 1e-9) return 'flat';
+    return d > 0 ? 'above' : 'below';
+}
+function cmpTag(kind) {
+    if (kind === 'above') return '<span class="cmp-tag cmp-above">高于</span>';
+    if (kind === 'below') return '<span class="cmp-tag cmp-below">低于</span>';
+    return '<span class="cmp-tag cmp-flat">持平</span>';
+}
+// 真实单品池（BV美 本周期全量）
+function realPool() {
+    const sp = appData.sku_period;
+    if (!sp || !sp.skus) return [];
+    return Object.values(sp.skus).map(function (s) {
+        return { sku: s.sku, name: s.name, category: s.category, current: s.current,
+                 sellingPoints: extractSellingPoints((s.name || '') + ' ' + (s.category || '')) };
+    });
+}
+// 演示单品池（同站点 sku_master）
+function demoPool(site) {
+    return (appData.sku_master || []).filter(function (r) { return r.site === site; }).map(function (r) {
+        return { sku: r.ns_code, name: r.ns_code, category: r.category,
+                 current: { sales: r.actual_sales, avg_price: r.aov, conv: r.conv, uv: null,
+                            bounce: null, cart_rate: null, checkout_rate: null },
+                 sellingPoints: extractSellingPoints(r.category || '') };
+    });
+}
+// 相关联产品：同类目（必须）+ 同客单价（±30% 加权）+ 卖点相似（重叠数）
+function relatedProducts(ctx, pool) {
+    const focal = ctx;
+    const sameCat = pool.filter(function (p) { return p.sku !== focal.sku && p.category === focal.category; });
+    if (sameCat.length === 0) return { items: [], catAvg: null };
+    const catAvg = {
+        conv: _avg(sameCat.map(function (p) { return p.current.conv; })),
+        sales: _avg(sameCat.map(function (p) { return p.current.sales; })),
+        uv: _avg(sameCat.map(function (p) { return p.current.uv || 0; })),
+        avg_price: _avg(sameCat.map(function (p) { return p.current.avg_price; })),
+        bounce: _avg(sameCat.map(function (p) { return p.current.bounce || 0; })),
+    };
+    const fp = (focal.current.avg_price || 1);
+    const fsp = new Set(focal.sellingPoints);
+    const scored = sameCat.map(function (p) {
+        const priceDiff = Math.abs((p.current.avg_price || 0) - fp) / fp;
+        const priceMatch = Math.max(0, 1 - priceDiff / 0.3);   // 30% 内线性
+        const psp = new Set(p.sellingPoints);
+        let overlap = 0; fsp.forEach(function (k) { if (psp.has(k)) overlap++; });
+        const score = priceMatch * 0.5 + (overlap > 0 ? 0.5 : 0) + overlap * 0.1;
+        return { p: p, priceDiff: priceDiff, overlap: overlap, score: score };
+    });
+    scored.sort(function (a, b) { return b.score - a.score; });
+    const items = scored.slice(0, 6).map(function (o) {
+        const p = o.p, cc = p.current, fc = focal.current;
+        return {
+            sku: p.sku, name: p.name, category: p.category,
+            conv: cc.conv, sales: cc.sales, uv: cc.uv, avg_price: cc.avg_price,
+            priceDiffPct: o.priceDiff * 100, overlap: o.overlap,
+            cmpConv: cmp(fc.conv, cc.conv),
+            cmpSales: cmp(fc.sales, cc.sales),
+            cmpUv: cmp(fc.uv, cc.uv),
+        };
+    });
+    return { items: items, catAvg: catAvg };
+}
+// OGSM 运营动作：本月 OGSM 计划里，落地店铺含本店 + 文本与本商品卖点/类目重叠
+function matchOgsmActions(ctx) {
+    const o = appData.ogsm_july;
+    if (!o || !o.rows) return [];
+    const site = ctx.site;
+    const kws = ctx.sellingPoints.slice();
+    (ctx.category || '').split(/[\s,\/&]+/).forEach(function (w) { if (w) kws.push(w); });
+    const kwset = new Set(kws.map(function (k) { return (k || '').toLowerCase(); }));
+    const out = [];
+    o.rows.forEach(function (row) {
+        if (site && row['落地店铺'] && row['落地店铺'].indexOf(site) < 0) return; // 店铺必须匹配
+        if (!row['计划']) return;
+        const blob = (row['板块'] + row['目的'] + row['目标'] + row['策略'] + row['衡量'] + row['计划']).toLowerCase();
+        let score = 0;
+        kwset.forEach(function (k) { if (k && blob.indexOf(k) >= 0) score++; });
+        if (score > 0) out.push({ 板块: row['板块'], 策略: row['策略'], 计划: row['计划'], score: score });
+    });
+    out.sort(function (a, b) { return b.score - a.score; });
+    return out.slice(0, 8);
+}
+// 建议：规则引擎（基于本商品数据 + 同类目均值 + 本 vs 上周期环比）
+function buildSuggestions(ctx, catAvg) {
+    const c = ctx.current, dl = ctx.delta;
+    const bullets = [];
+    // 1) 销售额环比
+    if (dl && dl.sales && dl.sales.abs !== undefined) {
+        const d = dl.sales.abs;
+        if (d < 0) bullets.push({ t: `销售额环比下滑 ${money(-d)}（${pct(dl.sales.rel)}），建议从流量与转化两端排查下滑来源。` });
+        else if (d > 0) bullets.push({ t: `销售额环比增长 ${money(d)}（${pct(dl.sales.rel)}），势头向好，建议趁势加投并稳住供给。` });
+    }
+    // 2) 转化率环比
+    if (dl && dl.conv && dl.conv.abs !== undefined && dl.conv.abs < 0)
+        bullets.push({ t: `转化率环比下降 ${pct(-dl.conv.abs)}，建议关注详情页卖点表达、价格竞争力与评价体系，优化加购→下单链路。` });
+    // 3) 低于同类目转化率
+    if (catAvg && catAvg.conv && c.conv < catAvg.conv * 0.95)
+        bullets.push({ t: `转化率 ${pct(c.conv)} 低于同类目均值 ${pct(catAvg.conv)}，矛盾在转化端，建议提升卖方信任度与流量精准度。` });
+    // 4) 跳出率偏高
+    if (catAvg && catAvg.bounce && c.bounce > catAvg.bounce * 1.05)
+        bullets.push({ t: `跳出率 ${pct(c.bounce)} 高于同类目均值，建议优化首屏与移动端落地体验、统一素材与落地页。` });
+    // 5) 加购不低但结账低
+    if (c.cart_rate > 0 && c.checkout_rate > 0 && c.checkout_rate < 0.5)
+        bullets.push({ t: `加购率 ${pct(c.cart_rate)} 不低但结账成功率 ${pct(c.checkout_rate)} 偏低，建议精简结账步骤、增加支付方式/本地化结算。` });
+    // 6) 客单价偏离
+    if (catAvg && catAvg.avg_price) {
+        if (c.avg_price > catAvg.avg_price * 1.15)
+            bullets.push({ t: `客单价 ${money(c.avg_price)} 高于同类目，建议通过搭配装/组合装提升性价比感知、降低决策门槛。` });
+        else if (c.avg_price < catAvg.avg_price * 0.85)
+            bullets.push({ t: `客单价 ${money(c.avg_price)} 低于同类目，建议用规格升级/套装上探价格带、提高件单价。` });
+    }
+    // 7) UV 充足但转化低
+    if (c.uv > 0 && c.conv < (catAvg ? catAvg.conv : 1) * 0.95)
+        bullets.push({ t: `访客 ${num(c.uv)} 不缺但转化偏弱，建议把流量质量（渠道/词）与落地承接一起复盘。` });
+    if (bullets.length === 0) bullets.push({ t: `各项指标稳健，建议维持运营节奏并小幅测试增量动作（如关联搭配、评价运营）。` });
+    const trendWord = (dl && dl.sales && dl.sales.abs >= 0) ? '环比上行' : '环比承压';
+    const summary = `${esc(ctx.name || ctx.sku)}（${esc(ctx.category)}）本周期销售额 ${money(c.sales)}、转化率 ${pct(c.conv)}、访客 ${c.uv != null ? num(c.uv) : '—'}，整体${trendWord}；客单价 ${money(c.avg_price)}，加购率 ${c.cart_rate != null ? pct(c.cart_rate) : '—'}、结账成功率 ${c.checkout_rate != null ? pct(c.checkout_rate) : '—'}。`;
+    return { summary: summary, bullets: bullets };
+}
+// 渲染三大板块到弹窗
+function renderSkuDeep(ctx) {
+    const pool = ctx.kind === 'real' ? realPool() : demoPool(ctx.site);
+    const rel = relatedProducts(ctx, pool);
+    const ogsm = matchOgsmActions(ctx);
+    const sug = buildSuggestions(ctx, rel.catAvg);
+
+    // —— ① 运营动作 ——
+    let a = '<h4>🛠 运营动作 <span class="pill">2 类来源</span></h4>';
+    a += '<div class="section-hint">实际运营动作 = 系统抓取（可能暂无）；OGSM 运营动作 = 本月 OGSM 计划（复盘抓取源）。</div>';
+    a += '<div class="deep-sub">① 实际运营动作（系统抓取）</div>';
+    if (ctx.realActions && ctx.realActions.length) {
+        a += '<div class="action-list">' + ctx.realActions.map(function (x) {
+            return `<div class="action-item"><div class="ai-head">${(esc(x.date) || '')} · ${(esc(x.source) || '抓取')}</div><div class="ai-body">${esc(x.action)}</div></div>`;
+        }).join('') + '</div>';
+    } else {
+        a += '<div class="empty-note">暂无抓取到的实际运营动作（当前周期未接入抓取源；接入后将在此展示真实操作记录）。</div>';
+    }
+    a += '<div class="deep-sub">② OGSM 运营动作（本月计划）</div>';
+    if (ogsm.length) {
+        a += '<div class="action-list">' + ogsm.map(function (x) {
+            return `<div class="action-item"><div class="ai-head">${esc(x.板块)}${x.策略 ? ' · ' + esc(x.策略.slice(0, 40)) : ''}</div><div class="ai-body">${esc(x.计划)}</div></div>`;
+        }).join('') + '</div>';
+        a += `<div class="empty-note" style="margin-top:6px;">共匹配 ${ogsm.length} 条 OGSM 计划动作；OGSM 复盘时，抓取数据将取自本部分。</div>`;
+    } else {
+        a += '<div class="empty-note">本月 OGSM 计划中暂无以本商品品类/店铺相关的运营动作。</div>';
+    }
+    const aEl = document.getElementById('sku-modal-actions'); if (aEl) aEl.innerHTML = a;
+
+    // —— ② 建议 ——
+    let sHtml = '<h4>💡 建议 <span class="pill">规则引擎</span></h4>';
+    sHtml += `<div class="suggest-summary">${sug.summary}</div>`;
+    sHtml += '<div class="suggest-list">' + sug.bullets.map(function (b) {
+        return `<div class="suggest-item">${esc(b.t)}</div>`;
+    }).join('') + '</div>';
+    const sEl = document.getElementById('sku-modal-suggest'); if (sEl) sEl.innerHTML = sHtml;
+
+    // —— ③ 相关联产品 ——
+    let rHtml = '<h4>🔗 相关联产品情况 <span class="pill">同类目·同客单价·卖点相似</span></h4>';
+    if (rel.items.length) {
+        rHtml += `<div class="section-hint">对照同类目 ${rel.items.length} 个关联品：本商品转化率/销售额/UV 高于或低于关联品（见标签）。</div>`;
+        rHtml += '<table class="rel-table"><thead><tr><th>关联品</th><th>转化率</th><th>销售额</th><th>UV</th><th>客单价</th><th>对比（本 vs 关联）</th></tr></thead><tbody>';
+        rel.items.forEach(function (it) {
+            rHtml += `<tr><td><div class="rel-name">${esc(it.name || it.sku)}</div><div style="font-size:11px;color:var(--radium-text-muted);">${esc(it.sku)}</div></td>` +
+                `<td>${pct(it.conv)}</td><td>${money(it.sales)}</td><td>${it.uv != null ? num(it.uv) : '—'}</td><td>${money(it.avg_price)}</td>` +
+                `<td class="cmp-cell">转化${cmpTag(it.cmpConv)}销售${cmpTag(it.cmpSales)}UV${it.uv != null ? cmpTag(it.cmpUv) : ''}</td></tr>`;
+        });
+        rHtml += '</tbody></table>';
+        if (rel.catAvg) {
+            const fc = ctx.current;
+            rHtml += `<div class="empty-note" style="margin-top:8px;">同类目均值：转化率 ${pct(rel.catAvg.conv)} · 销售额 ${money(rel.catAvg.sales)} · UV ${num(rel.catAvg.uv)} · 客单价 ${money(rel.catAvg.avg_price)} ｜ ` +
+                `本商品转化${cmpTag(cmp(fc.conv, rel.catAvg.conv))}销售${cmpTag(cmp(fc.sales, rel.catAvg.sales))}UV${fc.uv != null ? cmpTag(cmp(fc.uv, rel.catAvg.uv)) : ''}均值</div>`;
+        }
+    } else {
+        rHtml += '<div class="empty-note">同类目下暂无其他关联产品可对照（本品类在池中唯一）。</div>';
+    }
+    const rEl = document.getElementById('sku-modal-related'); if (rEl) rEl.innerHTML = rHtml;
+}
+// 由真实单品构建 ctx
+function buildRealCtx(s, rp) {
+    return {
+        kind: 'real', sku: s.sku, name: s.name, category: s.category, site: rp.site,
+        current: s.current, delta: s.delta, previous: s.previous,
+        sellingPoints: extractSellingPoints((s.name || '') + ' ' + (s.category || '')),
+        realActions: s.real_actions || [],
+    };
+}
+// 由演示单品构建 ctx
+function buildDemoCtx(r, code, site) {
+    return {
+        kind: 'demo', sku: code, name: code, category: r.category, site: site,
+        current: { sales: r.actual_sales, avg_price: r.aov, conv: r.conv, uv: null,
+                   bounce: null, cart_rate: null, checkout_rate: null, orders: r.actual_orders },
+        delta: null, previous: null,
+        sellingPoints: extractSellingPoints(r.category || ''),
+        realActions: [],
+    };
+}
+
 
 /* ===================================================================
  * 重点单品监控（自定义周期 + 目标单量）

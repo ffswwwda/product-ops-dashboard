@@ -368,7 +368,7 @@
 
     <!-- 单品深度下钻弹窗 -->
     <div id="sku-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:2100;align-items:center;justify-content:center;">
-        <div style="background:rgba(28,38,64,0.97);border:1px solid var(--radium-border);border-radius:16px;padding:24px;width:90%;max-width:760px;max-height:88vh;overflow-y:auto;">
+        <div style="background:rgba(28,38,64,0.97);border:1px solid var(--radium-border);border-radius:16px;padding:24px;width:92%;max-width:900px;max-height:90vh;overflow-y:auto;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                 <h3 id="sku-modal-title" style="font-size:18px;font-weight:600;color:var(--radium-text-strong);">📦 单品深度</h3>
                 <button class="btn btn-secondary" onclick="closeSkuModal()">✕ 关闭</button>
@@ -376,6 +376,9 @@
             <div id="sku-modal-metrics" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;"></div>
             <div id="sku-modal-extra" style="margin-bottom:16px;"></div>
             <div class="card"><div class="card-header"><div class="card-title" id="sku-series-title">📈 近 11 周单量走势（本周期）</div></div><div class="card-body"><div id="sku-series-chart" style="height:240px;"></div></div></div>
+            <div id="sku-modal-actions" class="deep-section"></div>
+            <div id="sku-modal-suggest" class="deep-section"></div>
+            <div id="sku-modal-related" class="deep-section"></div>
         </div>
     </div>
 

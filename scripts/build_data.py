@@ -505,6 +505,7 @@ def build_sku_period():
         skus[sku] = {
             'id': c['id'], 'sku': sku, 'name': c['name'], 'category': c['category'],
             'current': c, 'previous': p, 'delta': _mk_delta(c, p),
+            'real_actions': [],  # 实际运营动作（系统抓取源），当前周期未接入 → 空
         }
     # 按分类聚合（用于周期监控概览）
     by_cat = {}

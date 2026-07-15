@@ -494,6 +494,31 @@ body::after {
 }
 .period-delta-table tr:last-child td { border-bottom: none; }
 
+/* ===== 单品深度：运营动作 / 建议 / 关联产品 ===== */
+.deep-section { margin-top: 18px; border-top: 1px solid var(--radium-border); padding-top: 16px; }
+.deep-section h4 { font-size: 14px; font-weight: 600; color: var(--radium-text-primary); margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.deep-section h4 .pill { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; background: rgba(34,211,238,.12); color: #22d3ee; }
+.deep-section .section-hint { font-size: 12px; color: var(--radium-text-muted); margin: -4px 0 10px; }
+.deep-sub { font-weight: 600; font-size: 12px; margin: 10px 0 6px; color: var(--radium-text-primary); }
+.action-list { display: flex; flex-direction: column; gap: 8px; }
+.action-item { background: rgba(15,23,42,.45); border: 1px solid var(--radium-border); border-radius: 10px; padding: 10px 12px; }
+.action-item .ai-head { font-size: 12px; color: var(--radium-text-muted); margin-bottom: 4px; }
+.action-item .ai-body { font-size: 13px; color: var(--radium-text-primary); line-height: 1.5; white-space: pre-wrap; }
+.suggest-summary { font-size: 13px; line-height: 1.65; color: var(--radium-text-primary); background: rgba(99,102,241,.1); border-left: 3px solid #6366f1; padding: 10px 12px; border-radius: 8px; margin-bottom: 10px; }
+.suggest-list { display: flex; flex-direction: column; gap: 8px; }
+.suggest-item { font-size: 13px; line-height: 1.55; color: var(--radium-text-primary); display: flex; gap: 8px; }
+.suggest-item::before { content: '•'; color: #fb7185; flex: 0 0 auto; }
+.rel-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.rel-table th, .rel-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--radium-border); vertical-align: top; }
+.rel-table th { color: var(--radium-text-muted); font-weight: 500; }
+.rel-table td .rel-name { color: var(--radium-text-primary); font-weight: 500; }
+.rel-table .cmp-cell { white-space: nowrap; }
+.cmp-tag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 6px; margin-right: 3px; }
+.cmp-above { background: rgba(34,211,238,.15); color: #22d3ee; }
+.cmp-below { background: rgba(251,113,133,.15); color: #fb7185; }
+.cmp-flat { background: rgba(148,163,184,.15); color: #94a3b8; }
+.empty-note { font-size: 12px; color: var(--radium-text-muted); padding: 10px 12px; background: rgba(15,23,42,.4); border: 1px dashed var(--radium-border); border-radius: 8px; }
+
 .data-table th {
     text-align: left;
     padding: 12px 16px;
