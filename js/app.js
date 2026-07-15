@@ -1065,24 +1065,30 @@ function getProcessData(site) {
     if (site === 'BV美' && rp && rp.skus) {
         const cur = { sales: 0, avg: 0, uv: 0, addCart: 0, cartRate: 0, buyNow: 0, orders: 0, checkoutRate: 0, conv: 0, dwell: 0, bounce: 0 };
         const prev = { sales: 0, avg: 0, uv: 0, addCart: 0, cartRate: 0, buyNow: 0, orders: 0, checkoutRate: 0, conv: 0, dwell: 0, bounce: 0 };
-        let curW = 0, prevW = 0;
+        let curW = 0, prevW = 0, curUV = 0, prevUV = 0, curAddCart = 0, prevAddCart = 0;
         Object.values(rp.skus).forEach(s => {
             if (s.current) {
                 cur.sales += s.current.sales; cur.uv += s.current.uv; cur.addCart += s.current.add_cart;
                 cur.buyNow += s.current.buy_now; cur.orders += s.current.orders; cur.dwell += s.current.dwell_sec;
                 cur.bounce += s.current.bounce * s.current.uv; curW += s.current.uv;
+                cur.cartRate += s.current.cart_rate * s.current.uv; curAddCart += s.current.uv;
+                cur.checkoutRate += s.current.checkout_rate * s.current.add_cart; curAddCart += s.current.add_cart;
+                cur.conv += s.current.conv * s.current.uv; curUV += s.current.uv;
             }
             if (s.previous) {
                 prev.sales += s.previous.sales; prev.uv += s.previous.uv; prev.addCart += s.previous.add_cart;
                 prev.buyNow += s.previous.buy_now; prev.orders += s.previous.orders; prev.dwell += s.previous.dwell_sec;
                 prev.bounce += s.previous.bounce * s.previous.uv; prevW += s.previous.uv;
+                prev.cartRate += s.previous.cart_rate * s.previous.uv; prevAddCart += s.previous.uv;
+                prev.checkoutRate += s.previous.checkout_rate * s.previous.add_cart; prevAddCart += s.previous.add_cart;
+                prev.conv += s.previous.conv * s.previous.uv; prevUV += s.previous.uv;
             }
         });
-        cur.avg = cur.orders ? cur.sales / cur.orders : 0; cur.cartRate = cur.uv ? cur.addCart / cur.uv : 0;
-        cur.checkoutRate = cur.addCart ? (cur.orders / cur.addCart) : 0; cur.conv = cur.uv ? cur.orders / cur.uv : 0;
+        cur.avg = cur.orders ? cur.sales / cur.orders : 0; cur.cartRate = curAddCart ? cur.cartRate / curAddCart : 0;
+        cur.checkoutRate = curAddCart ? cur.checkoutRate / curAddCart : 0; cur.conv = curUV ? cur.conv / curUV : 0;
         cur.dwell = cur.orders ? cur.dwell / cur.orders : 0; cur.bounce = curW ? cur.bounce / curW : 0;
-        prev.avg = prev.orders ? prev.sales / prev.orders : 0; prev.cartRate = prev.uv ? prev.addCart / prev.uv : 0;
-        prev.checkoutRate = prev.addCart ? (prev.orders / prev.addCart) : 0; prev.conv = prev.uv ? prev.orders / prev.uv : 0;
+        prev.avg = prev.orders ? prev.sales / prev.orders : 0; prev.cartRate = prevAddCart ? prev.cartRate / prevAddCart : 0;
+        prev.checkoutRate = prevAddCart ? prev.checkoutRate / prevAddCart : 0; prev.conv = prevUV ? prev.conv / prevUV : 0;
         prev.dwell = prev.orders ? prev.dwell / prev.orders : 0; prev.bounce = prevW ? prev.bounce / prevW : 0;
         return { cur, prev, real: true };
     }
