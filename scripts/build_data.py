@@ -582,6 +582,82 @@ def build_ogsm_july():
             'rows': out_rows}
 
 
+def run_validations(out):
+    """数据层一致性校验闸门：任一项 FAIL 即中断构建(exit 1)，确保上线数据 100% 自洽。
+    覆盖：渠道占比求和、单品渠道自洽、类目/分层/站点汇总=总计、客单价/进度/缺口公式、
+    时间进度、BV美渠道订单占比精确、周期环比差值自洽。"""
+    checks = []
+    def add(name, ok, detail):
+        checks.append({'name': name, 'status': 'PASS' if ok else 'FAIL', 'detail': detail})
+    eps = 1e-6
+    # 1. 渠道占比求和 = 1
+    for s in SITES:
+        tot = sum(CH_SHARE[s].values())
+        add('渠道占比求和=100%% (%s)' % s, abs(tot - 1.0) < eps, 'Σ=%.10f' % tot)
+    # 2/3. 单品渠道订单/销售额自洽（fix_channel_integrity 的硬保证）
+    bad_o = bad_s = 0
+    for r in sku_master_cur:
+        so = sum(r['channels'][c]['orders'] for c in CHANNELS)
+        ss = sum(r['channels'][c]['sales'] for c in CHANNELS)
+        if abs(so - r['actual_orders']) > eps: bad_o += 1
+        if abs(ss - r['actual_sales']) > eps: bad_s += 1
+    add('单品渠道订单自洽(=actual_orders)', bad_o == 0, '异常 %d/%d' % (bad_o, len(sku_master_cur)))
+    add('单品渠道销售额自洽(=actual_sales)', bad_s == 0, '异常 %d/%d' % (bad_s, len(sku_master_cur)))
+    # 4-6. 类目/分层/站点汇总 = 总计（同一批整数 SKU 销售额的不同分组，必相等）
+    cur = actuals[CUR]
+    cat_sum = sum(cur['by_category'][c]['sales'] for c in CATS)
+    layer_sum = sum(cur['by_layer'][l]['sales'] for l in LAYERS)
+    site_sum = sum(cur['by_site'][s]['sales'] for s in SITES)
+    add('类目销售额汇总=总计', abs(cat_sum - cur['total']['sales']) < eps,
+        '类目Σ=%s 总计=%s' % (cat_sum, cur['total']['sales']))
+    add('分层销售额汇总=总计', abs(layer_sum - cur['total']['sales']) < eps,
+        '分层Σ=%s 总计=%s' % (layer_sum, cur['total']['sales']))
+    add('站点销售额汇总=总计', abs(site_sum - cur['total']['sales']) < eps,
+        '站点Σ=%s 总计=%s' % (site_sum, cur['total']['sales']))
+    # 7. 客单价公式
+    t = cur['total']
+    aov_exp = round(t['sales'] / t['orders'], 1) if t['orders'] else 0
+    add('总计客单价公式(aov=sales/orders)', t['aov'] == aov_exp,
+        'aov=%s 重算=%s' % (t['aov'], aov_exp))
+    # 8. 站点目标进度公式
+    bad_p = 0
+    for s in SITES:
+        bs = cur['by_site'][s]
+        exp = round(bs['sales'] / bs['target_sales'] * 100, 1) if bs['target_sales'] else 0
+        if bs['target_progress'] != exp: bad_p += 1
+    add('站点目标进度公式', bad_p == 0, '异常 %d/%d' % (bad_p, len(SITES)))
+    # 9. 站点缺口公式
+    bad_g = 0
+    for s in SITES:
+        bs = cur['by_site'][s]
+        exp = round(bs['sales'] - bs['target_sales'] * bs['time_progress'] / 100.0)
+        if bs['gap'] != exp: bad_g += 1
+    add('站点缺口公式', bad_g == 0, '异常 %d/%d' % (bad_g, len(SITES)))
+    # 10. 时间进度 = TP
+    bad_tp = sum(1 for s in SITES if cur['by_site'][s]['time_progress'] != TP[CUR])
+    add('站点时间进度=TP', bad_tp == 0, '异常 %d/%d' % (bad_tp, len(SITES)))
+    # 11. BV美渠道订单占比精确 = CH_SHARE（每个 SKU 按 CH_SHARE 拆分订单，聚合后严格相等）
+    bv = cur['by_site']['BV美']
+    tot_o = bv['orders']
+    bad_sh = 0
+    for ch in CHANNELS:
+        share = bv['channels'][ch]['orders'] / tot_o if tot_o else 0
+        if abs(share - CH_SHARE['BV美'][ch]) > 1e-3: bad_sh += 1
+    add('BV美渠道订单占比=真实占比', bad_sh == 0, '异常 %d/%d' % (bad_sh, len(CHANNELS)))
+    # 12. 周期环比差值自洽（BV美本/上周期 CSV）
+    sp = out.get('sku_period') or {}
+    bad_d = n_d = 0
+    for rec in (sp.get('skus') or {}).values():
+        if rec.get('previous'):
+            n_d += 1
+            d = rec['delta']['sales']
+            if abs(d['abs'] - (d['cur'] - d['prev'])) > eps: bad_d += 1
+    add('周期环比差值自洽(BV美)', bad_d == 0, '异常 %d/%d' % (bad_d, n_d))
+    total = len(checks)
+    passed = sum(1 for c in checks if c['status'] == 'PASS')
+    return {'passed': passed, 'total': total, 'checks': checks,
+            'generated_at': datetime.date.today().isoformat(), 'all_pass': passed == total}
+
 out = {
     'month_meta': {'current_month': CUR, 'current_month_label': '2026年' + CUR,
                    'today': CUTOFF[CUR], 'cutoff': CUTOFF[CUR],
@@ -598,6 +674,15 @@ out = {
     'price_targets': prev.get('price_targets', {}), 'struct_targets': prev.get('struct_targets', {}),
     'stats': prev.get('stats', {}),
 }
+# ---- 数据层一致性校验闸门（任一项失败即中断构建）----
+validation = run_validations(out)
+if not validation['all_pass']:
+    print('VALIDATION FAILED (%d/%d):' % (validation['passed'], validation['total']))
+    for c in validation['checks']:
+        if c['status'] == 'FAIL':
+            print('  FAIL', c['name'], '->', c['detail'])
+    raise SystemExit(1)
+out['validation'] = validation
 os.makedirs(os.path.dirname(OUT), exist_ok=True)
 json.dump(out, open(OUT, 'w'), ensure_ascii=False, indent=0)
 print('DONE bytes=', os.path.getsize(OUT))

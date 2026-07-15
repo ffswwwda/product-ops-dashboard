@@ -224,6 +224,8 @@ body::after {
     z-index: 900;
     padding: 16px;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 .sidebar-section-title {
@@ -896,3 +898,34 @@ input[type="checkbox"] {
 .dm-name { white-space: nowrap; font-weight: 500; min-width: 100px; }
 .dm-formula { font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.6; }
 .deriv-note-box { font-size: 13px; color: #facc15; background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.2); border-radius: 8px; padding: 10px 12px; line-height: 1.7; }
+
+/* ===== 准确率评估（来源/公式面板内） ===== */
+.acc-box { display: flex; gap: 14px; align-items: stretch; background: rgba(34,197,94,0.06); border: 1px solid rgba(34,197,94,0.28); border-radius: 10px; padding: 14px; }
+.acc-badge { flex: 0 0 auto; align-self: center; min-width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: #fff; background: #22c55e; box-shadow: 0 0 0 4px rgba(34,197,94,0.15); }
+.acc-body { flex: 1; min-width: 0; }
+.acc-claim { font-size: 14px; font-weight: 700; color: #4ade80; margin-bottom: 4px; }
+.acc-desc { font-size: 13px; color: var(--radium-text-secondary); line-height: 1.7; }
+.acc-note { font-size: 12px; color: #94a3b8; line-height: 1.7; margin-top: 6px; border-top: 1px dashed rgba(148,163,184,0.2); padding-top: 6px; }
+.acc-valid { font-size: 12px; color: var(--radium-text-secondary); margin-top: 6px; }
+.acc-link { color: #38bdf8; cursor: pointer; text-decoration: underline dotted; }
+
+/* ===== 数据校验报告 ===== */
+.valid-summary { font-size: 13px; font-weight: 600; padding: 10px 12px; border-radius: 8px; margin-bottom: 12px; line-height: 1.6; }
+.vs-all-pass { color: #4ade80; background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.25); }
+.vs-all-fail { color: #f87171; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.25); }
+.valid-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.valid-table th { text-align: left; color: var(--radium-text-secondary); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--radium-border); }
+.valid-table td { padding: 8px 10px; border-bottom: 1px solid rgba(148,163,184,0.08); vertical-align: top; }
+.vm-name { color: var(--radium-text-strong); }
+.vm-detail { color: #94a3b8; font-family: ui-monospace, monospace; font-size: 12px; }
+.valid-status { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+.vs-pass { color: #4ade80; background: rgba(34,197,94,0.12); }
+.vs-fail { color: #f87171; background: rgba(248,113,113,0.12); }
+
+/* ===== 侧边栏校验徽标 ===== */
+.sidebar-footer { margin-top: auto; padding: 14px 16px 18px; border-top: 1px solid var(--radium-border); }
+.valid-badge { width: 100%; text-align: center; font-size: 13px; font-weight: 700; padding: 9px 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; transition: filter .15s; }
+.valid-badge:hover { filter: brightness(1.12); }
+.vb-pass { color: #052e16; background: #22c55e; }
+.vb-fail { color: #fff; background: #ef4444; }
+.sidebar-footer-tip { font-size: 11px; color: #64748b; text-align: center; margin-top: 6px; line-height: 1.5; }
