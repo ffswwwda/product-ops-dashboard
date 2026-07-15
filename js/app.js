@@ -262,6 +262,7 @@ function switchPage(page, sub) {
     else if (page === 'review' && sub === 'monthly') generateMonthlyReview();
     else if (page === 'strategy' && sub === 'gen') generateStrategy();
     else if (page === 'strategy' && sub === 'lib') renderStrategyLib();
+    attachDerivation(id, page, sub);
 }
 
 /* ===================================================================
@@ -774,7 +775,7 @@ function renderSkuDeep(ctx) {
     const sug = buildSuggestions(ctx, rel.catAvg);
 
     // —— ① 运营动作 ——
-    let a = '<h4>运营动作 <span class="pill">2 类来源</span></h4>';
+    let a = '<h4>运营动作 <span class="pill link" onclick="openDerivation(\'sku-deep\',\'actions\')" title="查看来源与判定逻辑">2 类来源</span></h4>';
     a += '<div class="section-hint">实际运营动作 = 系统抓取（可能暂无）；OGSM 运营动作 = 本月 OGSM 计划（复盘抓取源）。</div>';
     a += '<div class="deep-sub">① 实际运营动作（系统抓取）</div>';
     if (ctx.realActions && ctx.realActions.length) {
@@ -796,7 +797,7 @@ function renderSkuDeep(ctx) {
     const aEl = document.getElementById('sku-modal-actions'); if (aEl) aEl.innerHTML = a;
 
     // —— ② 建议 ——
-    let sHtml = '<h4>建议 <span class="pill">规则引擎</span></h4>';
+    let sHtml = '<h4>建议 <span class="pill link" onclick="openDerivation(\'sku-deep\',\'suggest\')" title="查看来源与判定逻辑">规则引擎</span></h4>';
     sHtml += `<div class="suggest-summary">${sug.summary}</div>`;
     sHtml += '<div class="suggest-list">' + sug.bullets.map(function (b) {
         return `<div class="suggest-item">${esc(b.t)}</div>`;
@@ -804,7 +805,7 @@ function renderSkuDeep(ctx) {
     const sEl = document.getElementById('sku-modal-suggest'); if (sEl) sEl.innerHTML = sHtml;
 
     // —— ③ 相关联产品 ——
-    let rHtml = '<h4>相关联产品情况 <span class="pill">同类目·同客单价·卖点相似</span></h4>';
+    let rHtml = '<h4>相关联产品情况 <span class="pill link" onclick="openDerivation(\'sku-deep\',\'related\')" title="查看来源与判定逻辑">同类目·同客单价·卖点相似</span></h4>';
     if (rel.items.length) {
         rHtml += `<div class="section-hint">对照同类目 ${rel.items.length} 个关联品：本商品转化率/销售额/UV 高于或低于关联品（见标签）。</div>`;
         rHtml += '<table class="rel-table"><thead><tr><th>关联品</th><th>转化率</th><th>销售额</th><th>UV</th><th>客单价</th><th>对比（本 vs 关联）</th><th>关联原因</th></tr></thead><tbody>';
@@ -1483,3 +1484,141 @@ function saveExchangeRates() {
 
 /* 窗口缩放重绘 */
 window.addEventListener('resize', () => { chartRegistry.forEach(c => { try { c.resize(); } catch (e) {} }); });
+
+/* ===================================================================
+ * 数据来源 / 公式 说明（点击各板块"来源 / 公式"查看）
+ * 标记：real=真源(直接来自源文件) / demo=合成或占位(非真源) / mixed=混合
+ * =================================================================== */
+const DERIVATIONS = {
+  site: {
+    title: '站点汇总 / 单店铺深度', badge: 'mixed',
+    source: '目标销售额：xlsx《6月目标与规则》→"销售额目标"表（真源；含 7月则真，否则 demo 兜底）。实际销售额/订单：build_data.py 按 SKU 级求和聚合。注：AC美/UK英/EU欧 三站的实际额与渠道占比为合成 demo；仅 BV美 单品为真实 CSV。',
+    formulas: [
+      '目标进度 = 实际销售额 / 目标销售额 × 100',
+      '时间进度 = 当月已过天数 / 当月天数（7月 = 45.2%）',
+      '超前/滞后 = 实际销售额 − 目标销售额 × 时间进度',
+      '客单价 = 销售额 / 订单数',
+      '分渠道/类目/分层 = 各 SKU 按维度累加（渠道占比经完整性校验，合计=总量）'
+    ],
+    code: 'build_data.py::load_real_targets / aggregate / fix_channel_integrity ；app.js::renderSiteAll / renderSiteDetail'
+  },
+  category: {
+    title: '类目汇总 / 类目深度', badge: 'mixed',
+    source: '实际销售额/订单：聚合（真源 BV美 + 合成 其他站）。类目目标销售额 = 类目目标单量 × 类目基准客单价 AOV[类目]，属合成公式（非 xlsx 真源）。环比：本月(按全月节奏) vs 上月全月。',
+    formulas: [
+      '类目目标销售额 = 类目目标单量 × AOV[类目]（飞机杯72 / 增大器118 / 龟头训练器58）',
+      '目标进度 = 实际销售额 / 类目目标销售额 × 100',
+      '环比 = (本月销售额 ÷ 时间进度 − 上月销售额) / 上月销售额 × 100'
+    ],
+    code: 'build_data.py::aggregate(by_category) / mom ；app.js::renderCategoryAll / renderCategoryDetail'
+  },
+  product: {
+    title: '商品 / 结构层 / 重点单品监控', badge: 'mixed',
+    source: 'BV美 单品：CSV《商品-周期数据监控_本/上周期》真实 22 字段 + 本/上环比（真源）。AC美/UK英/EU欧 单品：build_data.py 合成（noise + 缩放对齐目标，demo）。重点单品勾选存 localStorage。',
+    formulas: [
+      'SKU 实际销售额 = 订单数 × 客单价(AOV × 噪声)',
+      '单品进度 = 实际单量 / 目标单量 × 100',
+      '加权转化率 = Σ(单品转化率 × 订单数) / Σ订单数'
+    ],
+    code: 'build_data.py::build_sku_month / aggregate(by_layer) ；app.js::renderProductAll / renderProductLayer / renderProductFocus'
+  },
+  operations: {
+    title: '运营动作 / 投放动作', badge: 'demo',
+    source: '当前为 SAMPLE 占位数据（app.js::getOpsSample / getAdsSample），非真源。待接入钉钉抓取源后替换；当前不可用于决策。',
+    formulas: ['（占位）接入真实抓取后，按 人/时间/类目/渠道 摘取并展示'],
+    code: 'app.js::getOpsSample / getAdsSample（占位，待替换）'
+  },
+  ogsms: {
+    title: 'OGSM 周复盘', badge: 'mixed',
+    source: '真实OGSM：data/ogsm_july_raw.csv（商品部 7月飞机杯，真源）→ D/状态/检查/下一步 为 CSV 原文直填，无计算；状态仅文本→颜色映射。生成周复盘：配置(localStorage 可编辑) + 预聚合 actuals。',
+    formulas: [
+      '生成-进度 = 实际 / 目标 × 100（实际取自预聚合销售额）',
+      '生成-状态 = 进度 − 时间进度（≥0 超前 / <0 滞后）',
+      '生成-检查 = 按 站点/类目/分层/渠道 交叉拆解缺口（buildOgsmCheck）'
+    ],
+    code: 'build_data.py::build_ogsm_july / build_ogsm_config ；app.js::computeOgsmData / buildOgsmCheck / renderOgsmReal'
+  },
+  monthly: {
+    title: '月度复盘', badge: 'mixed',
+    source: '复用预聚合 actuals（真源 BV美 + 合成 其他站）；报告由模板拼装，非独立源。',
+    formulas: ['报告 = 总销售额 / 目标 / 目标进度 / 环比 / 类目结构 / 问题分析，由 generateMonthlyReview 拼装'],
+    code: 'app.js::generateMonthlyReview'
+  },
+  strategy: {
+    title: '策略生成器 / 策略库', badge: 'demo',
+    source: '策略库为内置示例 + localStorage 新增（非业务真源）；生成按历史策略库打分匹配。',
+    formulas: ['策略评分 = 按 目的/站点/类目 匹配历史有效策略，给建议/成功率/为什么/OGSM'],
+    code: 'app.js::generateStrategy / renderStrategyLib'
+  },
+  'sku-deep|related': {
+    title: '相关联产品（同类目·同客单价·卖点相似）', badge: 'mixed',
+    source: '数据：BV美 本周期 CSV（真源）。判定：JS 规则引擎（relatedProducts）。',
+    formulas: [
+      '同类目：必须相同（硬条件）',
+      '客单价匹配 = max(0, 1 − |Δ客单价| / 30%) × 0.5',
+      '卖点重叠：标题/分类词重叠 +0.5 + 重叠数×0.1',
+      '综合 score = 客单价匹配 + 卖点重叠；取 Top6',
+      '关联原因 = 同类目 / 客单价差X% / 卖点相似:xx / 转化率接近 / UV接近'
+    ],
+    code: 'app.js::relatedProducts'
+  },
+  'sku-deep|suggest': {
+    title: '建议（规则引擎）', badge: 'mixed',
+    source: '数据：BV美 本/上周期 CSV（真源）。逻辑：JS 规则引擎（buildSuggestions）。',
+    formulas: [
+      '销售额环比 = (本−上) / 上 ；<0 提示排查',
+      '转化率：环比下降 或 低于同类目均值×0.95 → 提示优化',
+      '跳出率>类目均值×1.05 / 加购不低但结账<0.5 / 客单价偏离±15% / UV足转化弱 → 对应建议'
+    ],
+    code: 'app.js::buildSuggestions'
+  },
+  'sku-deep|actions': {
+    title: '运营动作（2 类来源）', badge: 'mixed',
+    source: '①实际运营动作 = 系统抓取源（当前周期未接入 → 显示"无"）。②OGSM 运营动作 = 本月 OGSM 计划（matchOgsmActions 文本匹配：店铺须匹配 + 卖点/类目重叠打分）。',
+    formulas: ['OGSM 匹配 score = Σ(板块/目的/目标/策略/计划 文本 与 本商品卖点/类目 的词重叠数)，取 Top8'],
+    code: 'app.js::matchOgsmActions'
+  }
+};
+
+function attachDerivation(id, page, sub) {
+  const node = document.getElementById(id);
+  if (!node) return;
+  const header = node.querySelector('.page-header');
+  if (!header) return;
+  let actions = header.querySelector('.page-actions');
+  if (!actions) {
+    actions = document.createElement('div');
+    actions.className = 'page-actions';
+    header.appendChild(actions);
+  }
+  if (actions.querySelector('.deriv-btn')) return; // 幂等
+  const btn = document.createElement('button');
+  btn.className = 'deriv-btn';
+  btn.textContent = '来源 / 公式';
+  btn.onclick = function () { openDerivation(page, sub); };
+  actions.appendChild(btn);
+}
+
+function derivationEntry(page, sub) {
+  if (DERIVATIONS[page + '|' + sub]) return DERIVATIONS[page + '|' + sub];
+  if (DERIVATIONS[page]) return DERIVATIONS[page];
+  return null;
+}
+
+function openDerivation(page, sub) {
+  const e = derivationEntry(page, sub);
+  const box = document.getElementById('deriv-modal');
+  if (!e || !box) return;
+  const badgeCls = { real: 'badge-real', demo: 'badge-demo', mixed: 'badge-mixed' }[e.badge] || 'badge-mixed';
+  const badgeTxt = { real: '真源', demo: '合成/占位', mixed: '混合' }[e.badge] || '混合';
+  document.getElementById('deriv-title').textContent = e.title;
+  document.getElementById('deriv-body').innerHTML =
+    '<div class="deriv-block"><span class="badge ' + badgeCls + '">' + badgeTxt + '</span></div>' +
+    '<div class="deriv-block"><div class="deriv-label">数据来源</div><div class="deriv-src">' + esc(e.source) + '</div></div>' +
+    '<div class="deriv-block"><div class="deriv-label">计算公式 / 判定逻辑</div><div class="deriv-formula">' +
+      e.formulas.map(function (f) { return esc(f); }).join('<br>') + '</div></div>' +
+    '<div class="deriv-block"><div class="deriv-label">代码位置</div><div class="deriv-code">' + esc(e.code) + '</div></div>' +
+    '<div class="deriv-note">说明：标"真源"的数字直接来自你提供的源文件；标"合成/占位"为演示或待接入数据，不可直接用于决策。</div>';
+  box.style.display = 'flex';
+}
+function closeDerivation() { const b = document.getElementById('deriv-modal'); if (b) b.style.display = 'none'; }
