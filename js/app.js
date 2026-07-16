@@ -20,12 +20,199 @@ let exchangeRates = { 'AC美': 6.7167, 'BV美': 6.7167, 'UK英': 9.0339, 'EU欧'
 const siteColor = { 'AC美': '#22d3ee', 'BV美': '#60a5fa', 'UK英': '#a78bfa', 'EU欧': '#34d399' };
 const layerColor = { '超爆': '#f59e0b', '爆款': '#fb7185', '头部': '#60a5fa', '腰部': '#34d399', '尾部': '#94a3b8' };
 let chartRegistry = [];
+let chartDataStore = {}; // 每个图表ID的最新数据：{ title, type, categories, series, data, unit }
+
 function safeInit(id) {
     const el = document.getElementById(id);
     if (!el) return null;
     const inst = echarts.getInstanceByDom(el);
     if (inst) inst.dispose();
-    const c = echarts.init(el); chartRegistry.push(c); return c;
+    const c = echarts.init(el); chartRegistry.push(c);
+    // 包装 setOption：自动记录数据并为卡片添加「复制 / 放大」按钮
+    const orig = c.setOption.bind(c);
+    c.setOption = function (option, notMerge, lazyUpdate) {
+        const r = orig(option, notMerge, lazyUpdate);
+        try { chartDataStore[id] = normalizeChartOption(id, option); } catch (e) {}
+        enhanceChartCard(id);
+        return r;
+    };
+    return c;
+}
+
+/* ----------------- 图表统一交互：复制文本 + 放大弹窗 ----------------- */
+function getChartTitle(id) {
+    const el = document.getElementById(id);
+    if (!el) return id;
+    const header = findChartHeader(el);
+    const titleEl = header ? header.querySelector('.card-title') : null;
+    return titleEl ? titleEl.textContent.trim() : id;
+}
+function findChartHeader(el) {
+    // 1. 自身是 chart div，前一个兄弟是 .card-header
+    let p = el.previousElementSibling;
+    while (p) { if (p.classList && p.classList.contains('card-header')) return p; p = p.previousElementSibling; }
+    // 2. 父级是 .card-body，父级的前一个兄弟是 .card-header
+    const parent = el.parentElement;
+    if (parent && parent.classList && parent.classList.contains('card-body')) {
+        p = parent.previousElementSibling;
+        while (p) { if (p.classList && p.classList.contains('card-header')) return p; p = p.previousElementSibling; }
+    }
+    // 3. 父级是 .chart-container 或 .card，找 .card-header 子元素
+    if (parent) {
+        const h = parent.querySelector(':scope > .card-header');
+        if (h) return h;
+    }
+    const card = el.closest('.card') || el.closest('.chart-container');
+    if (card) { const h = card.querySelector(':scope > .card-header'); if (h) return h; }
+    return null;
+}
+function ensureChartHeader(id) {
+    const el = document.getElementById(id); if (!el) return null;
+    let h = findChartHeader(el);
+    if (h) return h;
+    // 创建 header
+    const parent = el.parentElement || el;
+    h = document.createElement('div'); h.className = 'card-header';
+    h.innerHTML = '<div class="card-title">' + id + '</div>';
+    parent.insertBefore(h, parent.firstChild);
+    return h;
+}
+function enhanceChartCard(id) {
+    const el = document.getElementById(id); if (!el) return;
+    const header = findChartHeader(el); if (!header) return;
+    if (header.querySelector('.chart-card-actions')) return; // 已添加
+    const actions = document.createElement('div');
+    actions.className = 'chart-card-actions';
+    actions.innerHTML =
+        '<button class="chart-card-action" title="复制文本"><span class="icon">📄</span>复制文本</button>' +
+        '<button class="chart-card-action" title="放大查看"><span class="icon">🔍</span>放大</button>';
+    actions.querySelectorAll('button').forEach((btn, i) => {
+        btn.onclick = (e) => { e.stopPropagation(); if (i === 0) copyChartText(id); else openChartZoom(id); };
+    });
+    header.appendChild(actions);
+}
+function normalizeChartOption(id, option) {
+    const title = getChartTitle(id);
+    const type = option.series && option.series[0] ? option.series[0].type : 'bar';
+    const res = { id, title, type, option };
+    if (type === 'pie') {
+        res.data = (option.series[0].data || []).map(d => ({
+            name: d.name, value: d.value, percent: d.percent == null ? null : d.percent
+        }));
+        res.unit = option.__unit || 'sales';
+    } else {
+        res.categories = (option.xAxis && option.xAxis[0] ? option.xAxis[0].data : option.xAxis && option.xAxis.data) || [];
+        res.series = (option.series || []).map(s => ({
+            name: s.name || '数值',
+            type: s.type || 'bar',
+            unit: s.__unit || option.__unit || '',
+            data: (s.data || []).map(v => (v && typeof v === 'object' ? v.value : v))
+        }));
+    }
+    return res;
+}
+function formatChartValue(v, seriesName, unit) {
+    const name = (seriesName || '').toString();
+    const u = (unit || '').toString();
+    const isRate = name.includes('率') || name.includes('%') || u === 'rate' || u === 'pct';
+    if (isRate) {
+        if (Math.abs(v) < 1 && v !== 0) return pct(v * 100);
+        return pct(v);
+    }
+    const isMoney = name.includes('额') || name.includes('销售') || name.includes('金额') || name.includes('价') || name.includes('AOV') || name.includes('客单') || u === 'sales' || u === 'aov' || u === 'money';
+    if (isMoney) {
+        if (Math.abs(v) >= 10000) return fmtW(v);
+        return money(v);
+    }
+    const isCount = u === 'orders' || u === 'sku' || u === 'uv' || u === 'count';
+    if (isCount || Number.isInteger(v)) return num(Math.round(v));
+    if (Math.abs(v) >= 10000) return fmtW(v);
+    return money(v);
+}
+function buildChartText(id) {
+    const d = chartDataStore[id]; if (!d) return '暂无数据';
+    let txt = d.title + '\n数据周期：' + state.month + '（截止 ' + state.cutoff.slice(5) + '）\n' + '—'.repeat(30) + '\n';
+    if (d.type === 'pie') {
+        const total = d.data.reduce((s, x) => s + x.value, 0);
+        d.data.forEach(x => {
+            const p = total ? (x.value / total * 100).toFixed(1) : '0.0';
+            txt += x.name + '：' + formatChartValue(x.value, '销售额', d.unit) + '（' + p + '%）\n';
+        });
+        txt += '合计：' + formatChartValue(total, '销售额', d.unit) + '\n';
+    } else {
+        d.categories.forEach((cat, i) => {
+            txt += cat + '：';
+            d.series.forEach(s => {
+                txt += s.name + ' ' + formatChartValue(s.data[i] || 0, s.name, s.unit) + '；';
+            });
+            txt = txt.replace(/；$/, '') + '\n';
+        });
+    }
+    return txt;
+}
+function copyChartText(id) {
+    if (!id && window.__currentZoomChartId) id = window.__currentZoomChartId;
+    if (!id) return;
+    const txt = buildChartText(id);
+    navigator.clipboard.writeText(txt).then(() => {
+        showToast('已复制图表数据到剪贴板');
+    }).catch(() => {
+        const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast('已复制图表数据到剪贴板');
+    });
+}
+function showToast(msg) {
+    const t = document.createElement('div'); t.textContent = msg;
+    t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(34,197,94,0.95);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:3000;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+    document.body.appendChild(t); setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
+}
+let zoomChart = null;
+function openChartZoom(id) {
+    const d = chartDataStore[id]; if (!d) return;
+    window.__currentZoomChartId = id;
+    document.getElementById('chart-zoom-title').textContent = d.title + ' · 详细视图';
+    document.getElementById('chart-zoom-modal').style.display = 'flex';
+    const el = document.getElementById('chart-zoom-chart');
+    if (zoomChart) { zoomChart.dispose(); zoomChart = null; }
+    zoomChart = echarts.init(el);
+    // 深拷贝 option，调整成更适合弹窗的样式
+    const opt = JSON.parse(JSON.stringify(d.option || {}));
+    if (!opt.grid) opt.grid = { left: 60, right: 30, top: 40, bottom: 40 };
+    if (opt.legend) opt.legend.textStyle = { color: '#94a3b8', fontSize: 13 };
+    if (opt.tooltip) opt.tooltip.textStyle = { fontSize: 13 };
+    zoomChart.setOption(opt);
+    buildZoomTable(id);
+}
+function closeChartZoom() {
+    document.getElementById('chart-zoom-modal').style.display = 'none';
+    if (zoomChart) { zoomChart.dispose(); zoomChart = null; }
+    window.__currentZoomChartId = null;
+}
+function buildZoomTable(id) {
+    const d = chartDataStore[id]; if (!d) return;
+    let html = '';
+    if (d.type === 'pie') {
+        const total = d.data.reduce((s, x) => s + x.value, 0);
+        html = '<table class="chart-zoom-table"><thead><tr><th>名称</th><th class="num">数值</th><th class="num">占比</th></tr></thead><tbody>';
+        d.data.forEach(x => {
+            const p = total ? (x.value / total * 100).toFixed(1) : '0.0';
+            html += '<tr><td>' + esc(x.name) + '</td><td class="num">' + formatChartValue(x.value, '销售额', d.unit) + '</td><td class="num">' + p + '%</td></tr>';
+        });
+        html += '<tr style="font-weight:600"><td>合计</td><td class="num">' + formatChartValue(total, '销售额', d.unit) + '</td><td class="num">100%</td></tr></tbody></table>';
+    } else {
+        html = '<table class="chart-zoom-table"><thead><tr><th>维度</th>' + d.series.map(s => '<th class="num">' + esc(s.name) + '</th>').join('') + '</tr></thead><tbody>';
+        d.categories.forEach((cat, i) => {
+            html += '<tr><td>' + esc(cat) + '</td>' + d.series.map(s => '<td class="num">' + formatChartValue(s.data[i] || 0, s.name, s.unit) + '</td>').join('') + '</tr>';
+        });
+        html += '</tbody></table>';
+    }
+    document.getElementById('chart-zoom-table').innerHTML = html;
+}
+function downloadChartImage() {
+    const id = window.__currentZoomChartId; if (!id) return;
+    const chart = echarts.getInstanceByDom(document.getElementById('chart-zoom-chart'));
+    if (!chart) return;
+    const url = chart.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#0a0e1a' });
+    const a = document.createElement('a'); a.href = url; a.download = 'chart_' + id + '_' + state.cutoff + '.png'; a.click();
 }
 
 /* ----------------- 通用工具 ----------------- */
@@ -155,7 +342,7 @@ function targetHeroHTML(o) {
 }
 
 /* ----------------- 加载 ----------------- */
-document.addEventListener('DOMContentLoaded', () => { loadData(); initNavigation(); });
+document.addEventListener('DOMContentLoaded', () => { loadData(); initNavigation(); initModalBackdropClose(); });
 
 async function loadData() {
     try {
@@ -303,14 +490,14 @@ function renderSiteAll() {
     });
     // 排行
     const rank = safeInit('site-rank-chart');
-    rank.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 60, right: 20, top: 20, bottom: 30 },
+    rank.setOption({ tooltip: { trigger: 'axis' }, __unit: 'sales', grid: { left: 60, right: 20, top: 20, bottom: 30 },
         xAxis: { type: 'category', data: SITES, axisLabel: { color: '#94a3b8' } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
         series: [{ type: 'bar', data: SITES.map(s => A.by_site[s].sales), itemStyle: { color: p => siteColor[SITES[p.dataIndex]], borderRadius: [6, 6, 0, 0] } }] });
     // 趋势(目标 vs 实际按节奏)
     const months = Object.keys(appData.actuals).sort((a, b) => parseInt(a) - parseInt(b));
     const trend = safeInit('site-trend-chart');
-    trend.setOption({ tooltip: { trigger: 'axis' }, legend: { data: ['目标', '实际(全月节奏)'], textStyle: { color: '#94a3b8' } },
+    trend.setOption({ tooltip: { trigger: 'axis' }, __unit: 'sales', legend: { data: ['目标', '实际(全月节奏)'], textStyle: { color: '#94a3b8' } },
         grid: { left: 60, right: 20, top: 30, bottom: 30 },
         xAxis: { type: 'category', data: months.map(m => m + '月'), axisLabel: { color: '#94a3b8' } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
@@ -337,6 +524,7 @@ function sumChannel(ch) { let s = 0; SITES.forEach(site => s += (A.by_site[site]
 
 function pieOpt(data, name) {
     return { tooltip: { trigger: 'item', formatter: `{b}: {c} (${name})` }, legend: { bottom: 0, textStyle: { color: '#94a3b8' } },
+        __unit: 'sales',
         series: [{ type: 'pie', radius: ['38%', '66%'], center: ['50%', '45%'],
             data: data.map(d => ({ name: d.name, value: d.value, itemStyle: { color: layerColor[d.name] || siteColor[d.name] || undefined } })),
             label: { color: '#cbd5e1', formatter: '{b}\n{d}%' } }] };
@@ -381,8 +569,8 @@ function renderSiteDetail(site) {
         xAxis: { type: 'category', data: LAYERS, axisLabel: { color: '#94a3b8' } },
         yAxis: [{ type: 'value', name: '销售额', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
                 { type: 'value', name: '单量', axisLabel: { color: '#94a3b8' } }],
-        series: [{ type: 'bar', name: '销售额', data: LAYERS.map(l => d.layers[l].sales), itemStyle: { color: p => layerColor[LAYERS[p.dataIndex]], borderRadius: [6, 6, 0, 0] }, barWidth: '45%' },
-                 { type: 'line', name: '单量', yAxisIndex: 1, data: LAYERS.map(l => d.layers[l].orders), itemStyle: { color: '#f59e0b' } }] });
+        series: [{ type: 'bar', name: '销售额', __unit: 'sales', data: LAYERS.map(l => d.layers[l].sales), itemStyle: { color: p => layerColor[LAYERS[p.dataIndex]], borderRadius: [6, 6, 0, 0] }, barWidth: '45%' },
+                 { type: 'line', name: '单量', __unit: 'orders', yAxisIndex: 1, data: LAYERS.map(l => d.layers[l].orders), itemStyle: { color: '#f59e0b' } }] });
     lac.off('click'); lac.on('click', p => { state.shopLayer = p.name; renderShopSkuTable(site); document.getElementById('shop-layer-hint').textContent = '当前分层：' + p.name + '（点击其它层可切换）'; });
     // 明细表
     let rows = '';
@@ -426,8 +614,8 @@ function dualBar(cats, salesArr, orderArr, sName, oName, colorFn) {
         xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8', rotate: rotate, interval: 0 } },
         yAxis: [{ type: 'value', name: sName, axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
                 { type: 'value', name: oName, axisLabel: { color: '#94a3b8' } }],
-        series: [{ name: sName, type: 'bar', data: salesArr, itemStyle: { color: '#22d3ee', borderRadius: [6, 6, 0, 0] }, barWidth: '45%' },
-                 { name: oName, type: 'line', yAxisIndex: 1, data: orderArr, itemStyle: { color: '#f59e0b' } }] };
+        series: [{ name: sName, __unit: 'sales', type: 'bar', data: salesArr, itemStyle: { color: '#22d3ee', borderRadius: [6, 6, 0, 0] }, barWidth: '45%' },
+                 { name: oName, __unit: 'orders', type: 'line', yAxisIndex: 1, data: orderArr, itemStyle: { color: '#f59e0b' } }] };
 }
 
 /* ----------------- 4 维度指标定义（销售额 / 单量 / SKU数量 / 均价） ----------------- */
@@ -453,6 +641,7 @@ function metricByChannel(list, metric) {
 function metricBarOpt(cats, data, metric, colorFn) {
     const def = METRIC_DEF[metric];
     return { tooltip: { trigger: 'axis', formatter: p => `<div style="font-weight:600">${esc(p[0].name)}</div><div>${def.label}：${def.fmt(p[0].value)}</div>` },
+        __unit: metric,
         grid: { left: 60, right: 20, top: 20, bottom: 30 },
         xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8' } },
         yAxis: { type: 'value', name: def.label, axisLabel: { color: '#94a3b8', formatter: def.axisFmt } },
@@ -492,7 +681,7 @@ function renderCategoryAll() {
     document.getElementById('category-cards').innerHTML = rows;
     // 分店铺类目进度(分组柱)
     const csc = safeInit('category-shop-chart');
-    csc.setOption({ tooltip: { trigger: 'axis' }, legend: { data: CATS, textStyle: { color: '#94a3b8' } },
+    csc.setOption({ tooltip: { trigger: 'axis' }, __unit: 'sales', legend: { data: CATS, textStyle: { color: '#94a3b8' } },
         grid: { left: 60, right: 20, top: 30, bottom: 30 },
         xAxis: { type: 'category', data: SITES, axisLabel: { color: '#94a3b8' } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
@@ -569,7 +758,9 @@ function renderCategoryDetail(cat) {
     document.getElementById('cat-detail-focus-body').innerHTML = rows || '<tr><td colspan="12">无数据</td></tr>';
 }
 function barOpt(cats, data, name, colorFn) {
+    const unit = (name || '').includes('率') || (name || '').includes('%') ? 'rate' : '';
     return { tooltip: { trigger: 'axis' }, grid: { left: 60, right: 20, top: 20, bottom: 30 },
+        __unit: unit,
         xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8' } },
         yAxis: { type: 'value', name: name, axisLabel: { color: '#94a3b8' } },
         series: [{ type: 'bar', data: data.map((v, i) => ({ value: v, itemStyle: { color: colorFn ? colorFn(cats[i]) : '#22d3ee', borderRadius: [6, 6, 0, 0] } })), barWidth: '50%' }] };
@@ -601,7 +792,7 @@ function renderProductAll() {
         });
         series.push({ name: '目标', type: 'bar', data: target, itemStyle: { color: '#475569', borderRadius: [6, 6, 0, 0] } });
     }
-    pt.setOption({ tooltip: { trigger: 'axis' }, legend: { data: series.map(s => s.name), textStyle: { color: '#94a3b8' } },
+    pt.setOption({ tooltip: { trigger: 'axis' }, __unit: metric, legend: { data: series.map(s => s.name), textStyle: { color: '#94a3b8' } },
         grid: { left: 60, right: 20, top: 30, bottom: 30 },
         xAxis: { type: 'category', data: LAYERS, axisLabel: { color: '#94a3b8' } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: def.axisFmt } },
@@ -658,8 +849,8 @@ function renderProductLayer(layer) {
         xAxis: { type: 'category', data: SITES, axisLabel: { color: '#94a3b8' } },
         yAxis: [{ type: 'value', name: '销售额', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
                 { type: 'value', name: '单量', axisLabel: { color: '#94a3b8' } }],
-        series: [{ name: '销售额', type: 'bar', data: SITES.map(s => d.by_site[s].sales), itemStyle: { color: '#22d3ee', borderRadius: [6, 6, 0, 0] }, barWidth: '40%' },
-                 { name: '单量', type: 'line', yAxisIndex: 1, data: SITES.map(s => d.by_site[s].orders), itemStyle: { color: '#f59e0b' } }] });
+        series: [{ name: '销售额', __unit: 'sales', type: 'bar', data: SITES.map(s => d.by_site[s].sales), itemStyle: { color: '#22d3ee', borderRadius: [6, 6, 0, 0] }, barWidth: '40%' },
+                 { name: '单量', __unit: 'orders', type: 'line', yAxisIndex: 1, data: SITES.map(s => d.by_site[s].orders), itemStyle: { color: '#f59e0b' } }] });
     const cc = safeInit('pl-conv-chart');
     cc.setOption(barOpt(SITES, SITES.map(s => { const g = (appData.sku_master || []).filter(r => r.layer === layer && r.site === s); const o = g.reduce((s, r) => s + r.actual_orders, 0); const c = g.reduce((s, r) => s + r.conv * r.actual_orders, 0); return o ? +((c / o * 100).toFixed(2)) : 0; }), '转化率%', s => siteColor[s]));
     const list = (appData.sku_master || []).filter(r => r.layer === layer);
@@ -707,7 +898,7 @@ function openSkuModal(code, site) {
     const st = document.getElementById('sku-series-title'); if (st) st.textContent = '近 11 周单量走势（本周期）';
     const sc = safeInit('sku-series-chart');
     const ser = r.series || [];
-    sc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 50, right: 20, top: 20, bottom: 40 },
+    sc.setOption({ tooltip: { trigger: 'axis' }, __unit: 'orders', grid: { left: 50, right: 20, top: 20, bottom: 40 },
         xAxis: { type: 'category', data: ser.map(s => s.date), axisLabel: { color: '#94a3b8', rotate: 45 } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8' } },
         series: [{ type: 'line', smooth: true, data: ser.map(s => s.qty), areaStyle: { opacity: 0.15 }, itemStyle: { color: '#22d3ee' }, lineStyle: { width: 2 } }] });
@@ -752,15 +943,28 @@ function renderRealSkuModal(s, rp) {
     renderSkuDeep(buildRealCtx(s, rp));
 }
 function closeSkuModal() { document.getElementById('sku-modal').style.display = 'none'; }
-// ESC 关闭任意已打开的弹窗（含单品深度卡片）
+// ESC 关闭任意已打开的弹窗（含单品深度卡片 + 图表放大）
 document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-        ['sku-modal', 'focus-product-modal', 'ogsm-config-modal', 'strategy-modal', 'exchange-modal', 'deriv-modal', 'valid-modal'].forEach(function (id) {
+        ['sku-modal', 'focus-product-modal', 'ogsm-config-modal', 'strategy-modal', 'exchange-modal', 'deriv-modal', 'valid-modal', 'chart-zoom-modal'].forEach(function (id) {
             const m = document.getElementById(id);
             if (m && m.style.display === 'flex') m.style.display = 'none';
         });
+        if (zoomChart) { zoomChart.dispose(); zoomChart = null; }
     }
 });
+// 点击弹窗背景（空白处）关闭
+function initModalBackdropClose() {
+    ['sku-modal', 'focus-product-modal', 'ogsm-config-modal', 'strategy-modal', 'exchange-modal', 'deriv-modal', 'valid-modal', 'chart-zoom-modal'].forEach(function (id) {
+        const m = document.getElementById(id); if (!m) return;
+        m.addEventListener('click', function (e) {
+            if (e.target === m) {
+                m.style.display = 'none';
+                if (id === 'chart-zoom-modal' && zoomChart) { zoomChart.dispose(); zoomChart = null; }
+            }
+        });
+    });
+}
 
 /* ===================================================================
    单品深度分析 · 三大板块：运营动作 / 建议 / 相关联产品
@@ -1310,12 +1514,12 @@ function renderChannelChange() {
     const oData = cats.map(ch => chartData.filter(d => d.ch === ch).reduce((s, d) => s + d.oDelta, 0));
     const sData = cats.map(ch => chartData.filter(d => d.ch === ch).reduce((s, d) => s + d.sDelta, 0));
     const oc = safeInit('channel-change-chart');
-    oc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 60, right: 20, top: 20, bottom: 30 },
+    oc.setOption({ tooltip: { trigger: 'axis' }, __unit: 'orders', grid: { left: 60, right: 20, top: 20, bottom: 30 },
         xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8' } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8' } },
         series: [{ type: 'bar', data: oData, itemStyle: { color: p => oData[p.dataIndex] >= 0 ? '#22c55e' : '#ef4444', borderRadius: [6, 6, 0, 0] } }] });
     const sc = safeInit('channel-sales-chart');
-    sc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 60, right: 20, top: 20, bottom: 30 },
+    sc.setOption({ tooltip: { trigger: 'axis' }, __unit: 'sales', grid: { left: 60, right: 20, top: 20, bottom: 30 },
         xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8' } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
         series: [{ type: 'bar', data: sData, itemStyle: { color: p => sData[p.dataIndex] >= 0 ? '#22c55e' : '#ef4444', borderRadius: [6, 6, 0, 0] } }] });
@@ -1445,7 +1649,7 @@ function renderChangeAnalysis(metric, opts) {
     // 瀑布图：各维度变化
     const wf = safeInit(prefix + 'change-waterfall-chart');
     const wfItems = [].concat(siteRows, catRows, layerRows, channelRows).map(r => ({ name: r.key, value: r.delta })).sort((a, b) => b.value - a.value);
-    wf.setOption({ tooltip: { trigger: 'axis', formatter: p => `${esc(p[0].name)}：${p[0].value >= 0 ? '+' : ''}${def.deltaFmt(p[0].value)}` }, grid: { left: 80, right: 20, top: 20, bottom: 60 },
+    wf.setOption({ tooltip: { trigger: 'axis', formatter: p => `${esc(p[0].name)}：${p[0].value >= 0 ? '+' : ''}${def.deltaFmt(p[0].value)}` }, __unit: metric, grid: { left: 80, right: 20, top: 20, bottom: 60 },
         xAxis: { type: 'category', data: wfItems.map(x => x.name), axisLabel: { color: '#94a3b8', rotate: 45, interval: 0 } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: def.axisFmt ? def.axisFmt : v => v } },
         series: [{ type: 'bar', data: wfItems.map(x => ({ value: x.value, itemStyle: { color: x.value >= 0 ? '#22c55e' : '#ef4444' } })), barWidth: '50%' }] });
@@ -1453,7 +1657,7 @@ function renderChangeAnalysis(metric, opts) {
     const topItems = [].concat(siteRows, catRows, layerRows, channelRows).sort((a, b) => b.delta - a.delta);
     const topPos = topItems.slice(0, 8), topNeg = topItems.slice(-8).reverse();
     const tc = safeInit(prefix + 'change-top-chart');
-    tc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 80, right: 20, top: 20, bottom: 60 },
+    tc.setOption({ tooltip: { trigger: 'axis' }, __unit: metric, grid: { left: 80, right: 20, top: 20, bottom: 60 },
         xAxis: { type: 'category', data: topPos.concat(topNeg).map(r => r.key), axisLabel: { color: '#94a3b8', rotate: 45, interval: 0 } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: def.axisFmt ? def.axisFmt : v => v } },
         series: [{ type: 'bar', data: topPos.concat(topNeg).map(r => ({ value: r.delta, itemStyle: { color: r.delta >= 0 ? '#22c55e' : '#ef4444' } })), barWidth: '50%' }] });
@@ -1971,11 +2175,11 @@ function renderStrategyCharts() {
     document.getElementById('stat-rate').textContent = avg.toFixed(1);
     const types = [...new Set(str.map(s => s.type).filter(Boolean))];
     const tc = safeInit('strategy-type-chart');
-    tc.setOption({ tooltip: { trigger: 'item' }, legend: { bottom: 0, textStyle: { color: '#94a3b8' } },
+    tc.setOption({ tooltip: { trigger: 'item' }, __unit: 'count', legend: { bottom: 0, textStyle: { color: '#94a3b8' } },
         series: [{ type: 'pie', radius: ['38%', '66%'], center: ['50%', '45%'],
             data: types.map(t => ({ name: t, value: str.filter(s => s.type === t).length })), label: { color: '#cbd5e1', formatter: '{b}\n{d}%' } }] });
     const sc = safeInit('strategy-success-chart');
-    sc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 60, right: 20, top: 20, bottom: 40 },
+    sc.setOption({ tooltip: { trigger: 'axis' }, __unit: 'rate', grid: { left: 60, right: 20, top: 20, bottom: 40 },
         xAxis: { type: 'category', data: types, axisLabel: { color: '#94a3b8', rotate: 30 } },
         yAxis: { type: 'value', max: 100, axisLabel: { color: '#94a3b8', formatter: v => v + '%' } },
         series: [{ type: 'bar', data: types.map(t => { const g = str.filter(s => s.type === t); const eff = g.filter(s => s.effect === '有效').length; const pe = g.filter(s => s.effect === '部分有效').length; return Math.round((eff + pe * 0.5) / g.length * 100); }), itemStyle: { color: '#22d3ee', borderRadius: [6, 6, 0, 0] } }] });

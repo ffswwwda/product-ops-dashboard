@@ -499,6 +499,27 @@
         </section>
     </main>
 
+    <!-- 图表放大弹窗（通用） -->
+    <div id="chart-zoom-modal" class="chart-zoom-modal">
+        <div class="chart-zoom-box">
+            <div class="chart-zoom-head">
+                <div class="chart-zoom-title" id="chart-zoom-title">图表详情</div>
+                <div class="chart-zoom-actions">
+                    <button class="btn btn-secondary" onclick="copyChartText()">复制文本</button>
+                    <button class="btn btn-secondary" onclick="downloadChartImage()">下载图片</button>
+                    <button class="btn btn-secondary" onclick="closeChartZoom()">关闭</button>
+                </div>
+            </div>
+            <div class="chart-zoom-body">
+                <div class="chart-zoom-chart-wrap">
+                    <div id="chart-zoom-chart" class="chart-zoom-chart"></div>
+                </div>
+                <div class="chart-zoom-table-wrap" id="chart-zoom-table"></div>
+                <div class="chart-zoom-note" id="chart-zoom-note">提示：悬停或放大后可查看完整数值；点击「复制文本」可获取所有数据。</div>
+            </div>
+        </div>
+    </div>
+
     <!-- 单品深度下钻弹窗 -->
     <div id="sku-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:2100;align-items:center;justify-content:center;">
         <div style="background:rgba(28,38,64,0.97);border:1px solid var(--radium-border);border-radius:16px;padding:24px;width:92%;max-width:900px;max-height:90vh;overflow-y:auto;">
