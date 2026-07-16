@@ -133,6 +133,34 @@
                     <thead><tr><th>NS货号</th><th>类目</th><th>商品负责人</th><th>变化类型</th><th class="num">目标单量</th><th>预估定位</th><th class="num">当前目标单量</th><th class="num">当前实际单量</th><th>当前定位</th><th class="num">单量偏差</th><th class="num">完成率</th><th class="num">进度偏差</th><th>操作</th></tr></thead>
                     <tbody id="shop-sku-table"></tbody></table></div>
             </div>
+
+            <!-- ============ 店铺级 变化分析（UV / 客单价 / 单量） ============ -->
+            <div class="card" style="margin-top:24px;border-top:2px solid var(--radium-accent-green);">
+                <div class="card-header">
+                    <div class="card-title" id="shopc-change-title">变化分析</div>
+                    <div class="card-subtitle">本店铺视角 · 本期 vs 上期，定位到具体类目 / 产品定位 / 渠道 / 单品</div>
+                    <div class="card-actions">
+                        <div class="metric-tabs" style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <button class="ogsm-tab active" data-shopc-metric="uv" onclick="switchShopChange('uv')">UV变化</button>
+                            <button class="ogsm-tab" data-shopc-metric="aov" onclick="switchShopChange('aov')">客单价变化</button>
+                            <button class="ogsm-tab" data-shopc-metric="orders" onclick="switchShopChange('orders')">单量变化</button>
+                        </div>
+                        <select class="filter-select" id="shopc-change-period" onchange="renderShopChange(state.curShopMetric)" style="margin-left:10px;"><option value="prev">本月(已发生) vs 上月全月</option><option value="prev_paced">本月预估全月 vs 上月全月</option></select>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="shopc-change-summary"></div>
+                    <div class="grid-2" style="margin-top:12px;">
+                        <div><div class="card-header" style="padding:0;"><div class="card-title">变化贡献瀑布</div></div><div id="shopc-change-waterfall-chart" style="height:320px;"></div></div>
+                        <div><div class="card-header" style="padding:0;"><div class="card-title">Top 正负贡献</div></div><div id="shopc-change-top-chart" style="height:320px;"></div></div>
+                    </div>
+                    <div id="shopc-change-dimension-tables" style="margin-top:16px;"></div>
+                    <div class="card-header" style="padding:0;margin-top:16px;"><div class="card-title">单品驱动明细（该指标 Top 40）</div></div>
+                    <div id="shopc-change-sku-table" style="margin-top:8px;"></div>
+                    <div class="card-header" style="padding:0;margin-top:16px;"><div class="card-title">下一步计划建议</div></div>
+                    <div id="shopc-change-suggestions" style="margin-top:8px;"></div>
+                </div>
+            </div>
         </section>
 
         <!-- ============ 类目 - 全部分类汇总 ============ -->

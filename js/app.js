@@ -10,6 +10,7 @@ let appData = {};
 let A = null;                 // 当前月 actuals
 const state = { page: 'site', sub: 'all', month: '7月', cutoff: '2026-07-14',
                 timeProgress: 45.2, shopLayer: 'all', catMetric: 'sales', productMetric: 'sales',
+                curShop: null, curShopMetric: 'uv', changeMetric: 'uv',
                 focusCycle: {start: '2026-07-01', end: '2026-07-14'} };
 const SITES = ['AC美', 'BV美', 'UK英', 'EU欧'];
 const CATS = ['飞机杯', '增大器', '龟头训练器'];
@@ -336,7 +337,9 @@ function pieOpt(data, name) {
 let shopLayerChart = null;
 function renderSiteDetail(site) {
     const d = A.by_site[site];
+    state.curShop = site;
     document.getElementById('shop-detail-title').textContent = site + ' 店铺深度分析';
+    document.getElementById('shop-detail-subtitle').textContent = site + ' 维度 · 总销售/目标/进度 + 分渠道/类目/分层 + UV/客单价/单量变化分析 + 单品下钻';
     document.getElementById('shop-detail-cards').innerHTML = targetHeroHTML({
         scope: '销售额', target: d.target_sales, actual: d.sales, orders: d.orders, aov: d.aov, conv: d.conv,
         mom: A.mom.by_site[site], momLabel: '当月环比', title: site + ' · 目标对照总览',
@@ -377,6 +380,7 @@ function renderSiteDetail(site) {
     document.getElementById('shop-breakdown-table').innerHTML = rows;
     document.getElementById('shop-layer-hint').textContent = '点击上方分层图查看该层单品';
     renderShopSkuTable(site);
+    renderShopChange(state.curShopMetric);
 }
 function brkRow(dim, name, sales, orders, totalSales, totalOrders, sku_count, aov, conv) {
     const salesShare = totalSales ? (sales / totalSales * 100).toFixed(1) : 0;
@@ -1359,55 +1363,67 @@ function switchChangePage(metric) {
     document.getElementById('change-metric').value = metric;
     if (state.page === 'change') renderChangeAnalysis(metric);
 }
-function renderChangeAnalysis(metric) {
+function switchShopChange(metric) {
+    state.curShopMetric = metric;
+    document.querySelectorAll('[data-shopc-metric]').forEach(b => {
+        if (b.dataset.shopcMetric === metric) b.classList.add('active'); else b.classList.remove('active');
+    });
+    renderShopChange(metric);
+}
+function renderChangeAnalysis(metric, opts) {
+    opts = opts || {};
+    const scopeSite = opts.scopeSite || null;
+    const prefix = opts.prefix || '';
     metric = metric || state.changeMetric || 'uv';
     state.changeMetric = metric;
-    const mSel = document.getElementById('change-metric'); if (mSel && mSel.value !== metric) mSel.value = metric;
+    const mSel = document.getElementById(prefix + 'change-metric'); if (mSel && mSel.value !== metric) mSel.value = metric;
     const prevMonth = getChangePrevMonth() || '6月';
     const prev = appData.actuals[prevMonth];
     const cur = A;
-    if (!prev || !cur) { document.getElementById('change-dimension-tables').innerHTML = '<div class="empty-state-desc">缺少对比周期数据</div>'; return; }
+    if (!prev || !cur) { document.getElementById(prefix + 'change-dimension-tables').innerHTML = '<div class="empty-state-desc">缺少对比周期数据</div>'; return; }
     const def = CHANGE_DEF[metric];
-    const period = document.getElementById('change-period') ? document.getElementById('change-period').value : 'prev';
+    const period = document.getElementById(prefix + 'change-period') ? document.getElementById(prefix + 'change-period').value : 'prev';
     const pace = period === 'prev_paced' ? (100 / state.timeProgress) : 1;
-    document.getElementById('change-title').textContent = def.label + '变化分析';
-    // 总值
-    const curTotalRaw = valueBy(metric, cur.total);
+    const titleEl = document.getElementById(prefix + 'change-title'); if (titleEl) titleEl.textContent = (scopeSite ? scopeSite + ' · ' : '') + def.label + '变化分析';
+    // 范围总量
+    const curScope = scopeSite ? cur.by_site[scopeSite] : cur.total;
+    const prevScope = scopeSite ? prev.by_site[scopeSite] : prev.total;
+    const curTotalRaw = valueBy(metric, curScope);
     const curTotal = curTotalRaw * pace;
-    const prevTotal = valueBy(metric, prev.total);
+    const prevTotal = valueBy(metric, prevScope);
     const totalDelta = curTotal - prevTotal;
     const totalPct = prevTotal ? (totalDelta / prevTotal * 100) : 0;
-    document.getElementById('change-summary').innerHTML = `<div class="grid-4">` +
+    document.getElementById(prefix + 'change-summary').innerHTML = `<div class="grid-4">` +
         `<div class="stat-card"><div class="stat-card-label">本期${def.label}</div><div class="stat-card-value cyan">${def.fmt(curTotal)}</div></div>` +
         `<div class="stat-card"><div class="stat-card-label">上期${def.label}</div><div class="stat-card-value">${def.fmt(prevTotal)}</div></div>` +
         `<div class="stat-card"><div class="stat-card-label">变化</div><div class="stat-card-value ${totalDelta >= 0 ? 'green' : 'red'}">${totalDelta >= 0 ? '+' : ''}${def.deltaFmt(totalDelta)}</div></div>` +
         `<div class="stat-card"><div class="stat-card-label">变化率</div><div class="stat-card-value ${totalPct >= 0 ? 'green' : 'red'}">${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(1)}%</div></div>` +
         `</div>`;
     // 维度拆解
-    const siteRows = buildChangeRows(SITES, s => cur.by_site[s], s => prev.by_site[s], metric, totalDelta);
-    siteRows.forEach(r => { r.cur = r.cur * pace; r.delta = r.cur - r.prev; r.pct = r.prev ? (r.delta / r.prev * 100) : 0; });
-    const catRows = buildChangeRows(CATS, c => cur.by_category[c], c => prev.by_category[c], metric, totalDelta);
-    catRows.forEach(r => { r.cur = r.cur * pace; r.delta = r.cur - r.prev; r.pct = r.prev ? (r.delta / r.prev * 100) : 0; });
-    const layerRows = buildChangeRows(LAYERS, l => cur.by_layer[l], l => prev.by_layer[l], metric, totalDelta);
-    layerRows.forEach(r => { r.cur = r.cur * pace; r.delta = r.cur - r.prev; r.pct = r.prev ? (r.delta / r.prev * 100) : 0; });
-    const channelRows = buildChangeRows(CHANNELS, ch => {
-        const o = { orders: 0, sales: 0, conv: 0, conv_w: 0 };
-        SITES.forEach(s => { const c = cur.by_site[s].channels[ch]; if (c) { o.orders += c.orders || 0; o.sales += c.sales || 0; o.conv += (c.conv || 0) * (c.orders || 0); o.conv_w += c.orders || 0; } });
-        o.conv = o.conv_w ? o.conv / o.conv_w : 0; return o;
-    }, ch => {
-        const o = { orders: 0, sales: 0, conv: 0, conv_w: 0 };
-        SITES.forEach(s => { const c = prev.by_site[s].channels[ch]; if (c) { o.orders += c.orders || 0; o.sales += c.sales || 0; o.conv += (c.conv || 0) * (c.orders || 0); o.conv_w += c.orders || 0; } });
-        o.conv = o.conv_w ? o.conv / o.conv_w : 0; return o;
-    }, metric, totalDelta);
-    channelRows.forEach(r => { r.cur = r.cur * pace; r.delta = r.cur - r.prev; r.pct = r.prev ? (r.delta / r.prev * 100) : 0; });
+    let siteRows = [], catRows, layerRows, channelRows;
+    if (scopeSite) {
+        const cs = cur.by_site[scopeSite], ps = prev.by_site[scopeSite];
+        catRows = buildChangeRows(CATS, c => cs.categories[c], c => ps.categories[c], metric, totalDelta);
+        layerRows = buildChangeRows(LAYERS, l => cs.layers[l], l => ps.layers[l], metric, totalDelta);
+        channelRows = buildChangeRows(CHANNELS, ch => cs.channels[ch], ch => ps.channels[ch], metric, totalDelta);
+    } else {
+        siteRows = buildChangeRows(SITES, s => cur.by_site[s], s => prev.by_site[s], metric, totalDelta);
+        catRows = buildChangeRows(CATS, c => cur.by_category[c], c => prev.by_category[c], metric, totalDelta);
+        layerRows = buildChangeRows(LAYERS, l => cur.by_layer[l], l => prev.by_layer[l], metric, totalDelta);
+        channelRows = buildChangeRows(CHANNELS, ch => {
+            const o = { orders: 0, sales: 0, conv: 0, conv_w: 0 };
+            SITES.forEach(s => { const c = cur.by_site[s].channels[ch]; if (c) { o.orders += c.orders || 0; o.sales += c.sales || 0; o.conv += (c.conv || 0) * (c.orders || 0); o.conv_w += c.orders || 0; } });
+            o.conv = o.conv_w ? o.conv / o.conv_w : 0; return o;
+        }, ch => {
+            const o = { orders: 0, sales: 0, conv: 0, conv_w: 0 };
+            SITES.forEach(s => { const c = prev.by_site[s].channels[ch]; if (c) { o.orders += c.orders || 0; o.sales += c.sales || 0; o.conv += (c.conv || 0) * (c.orders || 0); o.conv_w += c.orders || 0; } });
+            o.conv = o.conv_w ? o.conv / o.conv_w : 0; return o;
+        }, metric, totalDelta);
+    }
+    [catRows, layerRows, channelRows, siteRows].forEach(arr => arr.forEach(r => { r.cur = r.cur * pace; r.delta = r.cur - r.prev; r.pct = r.prev ? (r.delta / r.prev * 100) : 0; }));
     // 瀑布图：各维度变化
-    const wf = safeInit('change-waterfall-chart');
-    const wfItems = [].concat(
-        siteRows.map(r => ({ name: r.key, value: r.delta, color: siteColor[r.key] })),
-        catRows.map(r => ({ name: r.key, value: r.delta })),
-        layerRows.map(r => ({ name: r.key, value: r.delta, color: layerColor[r.key] })),
-        channelRows.map(r => ({ name: r.key, value: r.delta }))
-    ).sort((a, b) => b.value - a.value);
+    const wf = safeInit(prefix + 'change-waterfall-chart');
+    const wfItems = [].concat(siteRows, catRows, layerRows, channelRows).map(r => ({ name: r.key, value: r.delta })).sort((a, b) => b.value - a.value);
     wf.setOption({ tooltip: { trigger: 'axis', formatter: p => `${esc(p[0].name)}：${p[0].value >= 0 ? '+' : ''}${def.deltaFmt(p[0].value)}` }, grid: { left: 80, right: 20, top: 20, bottom: 60 },
         xAxis: { type: 'category', data: wfItems.map(x => x.name), axisLabel: { color: '#94a3b8', rotate: 45, interval: 0 } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: def.axisFmt ? def.axisFmt : v => v } },
@@ -1415,19 +1431,18 @@ function renderChangeAnalysis(metric) {
     // Top 正负贡献图
     const topItems = [].concat(siteRows, catRows, layerRows, channelRows).sort((a, b) => b.delta - a.delta);
     const topPos = topItems.slice(0, 8), topNeg = topItems.slice(-8).reverse();
-    const tc = safeInit('change-top-chart');
+    const tc = safeInit(prefix + 'change-top-chart');
     tc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 80, right: 20, top: 20, bottom: 60 },
         xAxis: { type: 'category', data: topPos.concat(topNeg).map(r => r.key), axisLabel: { color: '#94a3b8', rotate: 45, interval: 0 } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: def.axisFmt ? def.axisFmt : v => v } },
         series: [{ type: 'bar', data: topPos.concat(topNeg).map(r => ({ value: r.delta, itemStyle: { color: r.delta >= 0 ? '#22c55e' : '#ef4444' } })), barWidth: '50%' }] });
     // 维度明细表
-    document.getElementById('change-dimension-tables').innerHTML =
-        changeTable(siteRows, '按站点', metric) +
-        changeTable(catRows, '按类目', metric) +
-        changeTable(layerRows, '按产品定位', metric) +
-        changeTable(channelRows, '按渠道', metric);
+    let tablesHtml = '';
+    if (!scopeSite) tablesHtml += changeTable(siteRows, '按站点', metric);
+    tablesHtml += changeTable(catRows, '按类目', metric) + changeTable(layerRows, '按产品定位', metric) + changeTable(channelRows, '按渠道', metric);
+    document.getElementById(prefix + 'change-dimension-tables').innerHTML = tablesHtml;
     // 单品驱动明细：按当前指标排序
-    const skuList = (appData.sku_master || []).slice().sort((a, b) => def.skuValue(b) - def.skuValue(a)).slice(0, 40);
+    const skuList = (appData.sku_master || []).filter(r => !scopeSite || r.site === scopeSite).slice().sort((a, b) => def.skuValue(b) - def.skuValue(a)).slice(0, 40);
     let skuRows = '';
     skuList.forEach(r => {
         const v = def.skuValue(r);
@@ -1435,9 +1450,14 @@ function renderChangeAnalysis(metric) {
             `<td class="num">${def.fmt(v)}</td><td class="num">${num(r.actual_orders)}</td><td class="num">${money(r.actual_orders ? r.actual_sales / r.actual_orders : 0)}</td>` +
             `<td><button class="btn btn-mini" onclick="openSkuModal('${esc(r.ns_code)}','${r.site}')">深度</button></td></tr>`;
     });
-    document.getElementById('change-sku-table').innerHTML = '<table class="data-table"><thead><tr><th>货号</th><th>类目</th><th>站点</th><th class="num">当前' + def.label + '</th><th class="num">单量</th><th class="num">均价</th><th>操作</th></tr></thead><tbody>' + (skuRows || '<tr><td colspan="7">无数据</td></tr>') + '</tbody></table>';
+    document.getElementById(prefix + 'change-sku-table').innerHTML = '<table class="data-table"><thead><tr><th>货号</th><th>类目</th><th>站点</th><th class="num">当前' + def.label + '</th><th class="num">单量</th><th class="num">均价</th><th>操作</th></tr></thead><tbody>' + (skuRows || '<tr><td colspan="7">无数据</td></tr>') + '</tbody></table>';
     // 建议
-    document.getElementById('change-suggestions').innerHTML = changeSuggestions(metric, totalDelta, siteRows, catRows, layerRows, channelRows);
+    document.getElementById(prefix + 'change-suggestions').innerHTML = changeSuggestions(metric, totalDelta, siteRows, catRows, layerRows, channelRows);
+}
+// 店铺级变化分析入口
+function renderShopChange(metric) {
+    const site = state.curShop; if (!site) return;
+    renderChangeAnalysis(metric, { scopeSite: site, prefix: 'shopc-' });
 }
 
 /* ===================================================================

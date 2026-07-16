@@ -207,8 +207,8 @@ def aggregate(master, month):
     for s in SITES:
         agg['by_site'][s] = {'sales': 0, 'orders': 0, 'conv_sum': 0.0, 'conv_w': 0, 'sku_count': 0,
                              'channels': {c: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0} for c in CHANNELS},
-                             'categories': {c: {'sales': 0, 'orders': 0, 'sku_count': 0} for c in CATS},
-                             'layers': {l: {'sales': 0, 'orders': 0, 'sku_count': 0} for l in LAYERS}}
+                             'categories': {c: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0} for c in CATS},
+                             'layers': {l: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0} for l in LAYERS}}
     for c in CATS:
         agg['by_category'][c] = {'sales': 0, 'orders': 0, 'target_sales': 0, 'target_orders': 0,
                                  'conv_sum': 0.0, 'conv_w': 0, 'sku_count': 0,
@@ -235,7 +235,9 @@ def aggregate(master, month):
             if r['channels'][ch]['orders'] > 0:
                 bs['channels'][ch]['sku_count'] += 1
         bs['categories'][cat]['sales'] += sales; bs['categories'][cat]['orders'] += orders; bs['categories'][cat]['sku_count'] += 1
+        bs['categories'][cat]['conv_sum'] += conv * orders; bs['categories'][cat]['conv_w'] += orders
         bs['layers'][layer]['sales'] += sales; bs['layers'][layer]['orders'] += orders; bs['layers'][layer]['sku_count'] += 1
+        bs['layers'][layer]['conv_sum'] += conv * orders; bs['layers'][layer]['conv_w'] += orders
         bc = agg['by_category'][cat]
         bc['sales'] += sales; bc['orders'] += orders; bc['target_orders'] += tgt_o
         bc['conv_sum'] += conv * orders; bc['conv_w'] += orders; bc['sku_count'] += 1
@@ -268,6 +270,16 @@ def aggregate(master, month):
             chv['conv'] = round(chv['conv_sum'] / chv['conv_w'], 4) if chv['conv_w'] else 0
             chv['aov'] = round(chv['sales'] / chv['orders'], 1) if chv['orders'] else 0
             del chv['conv_sum']; del chv['conv_w']
+        for c in CATS:
+            cv = bs['categories'][c]
+            cv['conv'] = round(cv['conv_sum'] / cv['conv_w'], 4) if cv['conv_w'] else 0
+            cv['aov'] = round(cv['sales'] / cv['orders'], 1) if cv['orders'] else 0
+            del cv['conv_sum']; del cv['conv_w']
+        for l in LAYERS:
+            lv = bs['layers'][l]
+            lv['conv'] = round(lv['conv_sum'] / lv['conv_w'], 4) if lv['conv_w'] else 0
+            lv['aov'] = round(lv['sales'] / lv['orders'], 1) if lv['orders'] else 0
+            del lv['conv_sum']; del lv['conv_w']
         del bs['conv_sum']; del bs['conv_w']
     for c in CATS:
         bc = agg['by_category'][c]
