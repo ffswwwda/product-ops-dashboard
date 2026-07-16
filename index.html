@@ -58,6 +58,11 @@
         <div class="sidebar-nav-item" data-page="process" data-sub="all">分站点过程数据对比</div>
         <div class="sidebar-nav-item" data-page="channel" data-sub="all">分站点出单渠道变化</div>
 
+        <div class="sidebar-section-title">变化分析</div>
+        <div class="sidebar-nav-item" data-page="change" data-sub="uv">UV变化分析</div>
+        <div class="sidebar-nav-item" data-page="change" data-sub="aov">客单价变化分析</div>
+        <div class="sidebar-nav-item" data-page="change" data-sub="orders">单量变化分析</div>
+
         <div class="sidebar-section-title">运营/投放动作</div>
         <div class="sidebar-nav-item" data-page="operations" data-sub="ops">运营动作</div>
         <div class="sidebar-nav-item" data-page="operations" data-sub="ads">投放动作</div>
@@ -118,7 +123,7 @@
             <div class="card" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">渠道 / 类目 / 分层 明细（销售额 + 单量 + SKU数量 + 客单价 + 转化率）</div></div>
                 <div class="card-body"><table class="data-table">
-                    <thead><tr><th>维度</th><th>细分</th><th class="num">销售额</th><th class="num">销售额占比</th><th class="num">单量</th><th class="num">单量占比</th><th class="num">SKU数量</th><th class="num">客单价</th><th class="num">转化率</th></tr></thead>
+                    <thead><tr><th>维度</th><th>细分</th><th class="num">销售额</th><th class="num">销售额占比</th><th class="num">单量</th><th class="num">单量占比</th><th class="num">SKU数量</th><th class="num">均价</th><th class="num">转化率</th></tr></thead>
                     <tbody id="shop-breakdown-table"></tbody></table></div>
             </div>
                 <div class="card" style="margin-top:20px;">
@@ -159,16 +164,28 @@
                     <select class="filter-select" id="cat-detail-layer"><option>全部层级</option><option>超爆</option><option>爆款</option><option>头部</option><option>腰部</option><option>尾部</option></select></div>
             </div>
             <div id="cat-detail-cards" style="margin-top:8px;"></div>
-            <div class="grid-3" style="margin-top:20px;">
-                <div class="card"><div class="card-header"><div class="card-title">商品结构单量分布</div></div><div class="card-body"><div id="cat-detail-structure-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">渠道单量分布</div></div><div class="card-body"><div id="cat-detail-channel-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">分店铺单量</div></div><div class="card-body"><div id="cat-detail-shop-chart" style="height:300px;"></div></div></div>
+            <div class="metric-tabs" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+                <button class="ogsm-tab" data-cat-metric="sales" onclick="switchCatMetric('sales')">销售额</button>
+                <button class="ogsm-tab active" data-cat-metric="orders" onclick="switchCatMetric('orders')">单量</button>
+                <button class="ogsm-tab" data-cat-metric="sku" onclick="switchCatMetric('sku')">SKU数量</button>
+                <button class="ogsm-tab" data-cat-metric="aov" onclick="switchCatMetric('aov')">均价</button>
+            </div>
+            <div class="grid-3" style="margin-top:12px;">
+                <div class="card"><div class="card-header"><div class="card-title" id="cat-detail-structure-title">商品结构单量分布</div></div><div class="card-body"><div id="cat-detail-structure-chart" style="height:300px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title" id="cat-detail-channel-title">渠道单量分布</div></div><div class="card-body"><div id="cat-detail-channel-chart" style="height:300px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title" id="cat-detail-shop-title">分店铺单量</div></div><div class="card-body"><div id="cat-detail-shop-chart" style="height:300px;"></div></div></div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header"><div class="card-title">四维指标明细</div><div class="card-subtitle">按当前选定维度聚合：销售额 / 单量 / SKU数量 / 均价</div></div>
+                <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
+                    <thead><tr><th>维度</th><th>细分</th><th class="num">销售额</th><th class="num">单量</th><th class="num">SKU数量</th><th class="num">均价</th></tr></thead>
+                    <tbody id="cat-detail-dimension-body"></tbody></table></div></div>
             </div>
             <div class="card" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">重点单品（点击货号看本周期深度）</div>
                     <div class="card-subtitle" id="cat-detail-focus-sub"></div></div>
                 <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
-                    <thead><tr><th>货号</th><th>站点</th><th>负责人</th><th class="num">上月销量</th><th class="num">本月目标</th><th class="num">实际单量</th><th class="num">进度</th><th>定位</th><th>变化</th><th>操作</th></tr></thead>
+                    <thead><tr><th>货号</th><th>站点</th><th>负责人</th><th class="num">上月销量</th><th class="num">销售额</th><th class="num">本月目标</th><th class="num">实际单量</th><th class="num">进度</th><th>定位</th><th class="num">均价</th><th>变化</th><th>操作</th></tr></thead>
                     <tbody id="cat-detail-focus-body"></tbody></table></div></div>
             </div>
         </section>
@@ -184,15 +201,27 @@
                 <div class="filter-group"><span class="filter-label">商品分层</span>
                     <select class="filter-select" id="product-layer"><option>全部层级</option><option>超爆</option><option>爆款</option><option>头部</option><option>腰部</option><option>尾部</option></select></div>
             </div>
-            <div class="grid-2" style="margin-bottom:20px;margin-top:8px;">
-                <div class="chart-container"><div class="card-header"><div class="card-title">商品结构层销售额（实际）</div></div><div id="product-structure-chart" style="height:300px;"></div></div>
-                <div class="chart-container"><div class="card-header"><div class="card-title">结构层实际 vs 目标结构</div></div><div id="product-trend-chart" style="height:300px;"></div></div>
+            <div class="metric-tabs" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+                <button class="ogsm-tab active" data-product-metric="sales" onclick="switchProductMetric('sales')">销售额</button>
+                <button class="ogsm-tab" data-product-metric="orders" onclick="switchProductMetric('orders')">单量</button>
+                <button class="ogsm-tab" data-product-metric="sku" onclick="switchProductMetric('sku')">SKU数量</button>
+                <button class="ogsm-tab" data-product-metric="aov" onclick="switchProductMetric('aov')">均价</button>
+            </div>
+            <div class="grid-2" style="margin-bottom:20px;margin-top:12px;">
+                <div class="chart-container"><div class="card-header"><div class="card-title" id="product-structure-title">商品结构层销售额（实际）</div></div><div id="product-structure-chart" style="height:300px;"></div></div>
+                <div class="chart-container"><div class="card-header"><div class="card-title" id="product-trend-title">结构层实际 vs 目标结构</div></div><div id="product-trend-chart" style="height:300px;"></div></div>
             </div>
             <div class="card" style="margin-top:20px;">
-                <div class="card-header"><div class="card-title">单品列表（目标 vs 实际）</div><div class="card-subtitle">点击货号展开本周期深度</div></div>
-                <div class="card-body"><table class="data-table">
-                    <thead><tr><th>货号</th><th>类目</th><th>站点</th><th class="num">本月目标单量</th><th class="num">实际单量</th><th class="num">进度</th><th>定位</th><th>变化</th><th>负责人</th><th>操作</th></tr></thead>
-                    <tbody id="product-table-body"></tbody></table></div>
+                <div class="card-header"><div class="card-title">结构层四维指标明细</div><div class="card-subtitle">销售额 / 单量 / SKU数量 / 均价</div></div>
+                <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
+                    <thead><tr><th>结构层</th><th class="num">销售额</th><th class="num">单量</th><th class="num">SKU数量</th><th class="num">均价</th><th class="num">目标销售额</th><th class="num">目标单量</th></tr></thead>
+                    <tbody id="product-dimension-body"></tbody></table></div></div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header"><div class="card-title">单品列表（四站点同 SKU 对照）</div><div class="card-subtitle">点击站点格子弹出该站点本周期深度</div></div>
+                <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
+                    <thead><tr><th>货号</th><th>类目</th><th class="num">AC美</th><th class="num">BV美</th><th class="num">UK英</th><th class="num">EU欧</th><th class="num">合计</th><th>操作</th></tr></thead>
+                    <tbody id="product-table-body"></tbody></table></div></div>
             </div>
         </section>
 
@@ -294,6 +323,39 @@
                 <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
                     <thead><tr><th>站点</th><th>渠道</th><th class="num">本周期单量</th><th class="num">上周期单量</th><th class="num">单量变化</th><th class="num">本周期销售额</th><th class="num">上周期销售额</th><th class="num">销售额变化</th></tr></thead>
                     <tbody id="channel-change-body"></tbody></table></div></div>
+            </div>
+        </section>
+
+        <!-- ============ 变化分析（UV / 客单价 / 单量） ============ -->
+        <section id="page-change" class="page-section" style="display:none;">
+            <div class="page-header">
+                <div><h1 class="page-title" id="change-title">UV变化分析</h1>
+                    <p class="page-subtitle" id="change-subtitle">从渠道、类目、产品定位、单品、运营动作、渠道动作、外部变化等维度定位变化原因，并给出下一步计划建议</p></div>
+            </div>
+            <div class="filter-bar">
+                <div class="filter-group"><span class="filter-label">分析指标</span>
+                    <select class="filter-select" id="change-metric" onchange="switchChangePage(this.value)">
+                        <option value="uv">UV变化分析</option><option value="aov">客单价变化分析</option><option value="orders">单量变化分析</option>
+                    </select></div>
+                <div class="filter-group"><span class="filter-label">对比周期</span>
+                    <select class="filter-select" id="change-period" onchange="renderChangeAnalysis(state.changeMetric)"><option value="prev">本月(已发生) vs 上月全月</option><option value="prev_paced">本月预估全月 vs 上月全月</option></select></div>
+            </div>
+            <div id="change-summary" style="margin-top:12px;"></div>
+            <div class="grid-2" style="margin-top:20px;">
+                <div class="card"><div class="card-header"><div class="card-title">变化维度贡献瀑布</div><div class="card-subtitle">按站点/类目/分层/渠道分解总变化</div></div><div class="card-body"><div id="change-waterfall-chart" style="height:320px;"></div></div></div>
+                <div class="card"><div class="card-header"><div class="card-title">变化维度 Top 正负贡献</div></div><div class="card-body"><div id="change-top-chart" style="height:320px;"></div></div></div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header"><div class="card-title">分维度变化明细</div><div class="card-subtitle">正数为推动指标上涨，负数为拉低指标</div></div>
+                <div class="card-body"><div id="change-dimension-tables" style="overflow-x:auto;"></div></div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header"><div class="card-title">单品驱动明细</div><div class="card-subtitle">当前周期该指标最高的单品及其站点分布</div></div>
+                <div class="card-body"><div id="change-sku-table" style="overflow-x:auto;"></div></div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <div class="card-header"><div class="card-title">下一步计划建议</div><div class="card-subtitle">基于变化结构自动生成的规则化建议</div></div>
+                <div class="card-body"><div id="change-suggestions"></div></div>
             </div>
         </section>
 

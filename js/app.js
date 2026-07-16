@@ -9,7 +9,8 @@
 let appData = {};
 let A = null;                 // 当前月 actuals
 const state = { page: 'site', sub: 'all', month: '7月', cutoff: '2026-07-14',
-                timeProgress: 45.2, shopLayer: 'all', focusCycle: {start: '2026-07-01', end: '2026-07-14'} };
+                timeProgress: 45.2, shopLayer: 'all', catMetric: 'sales', productMetric: 'sales',
+                focusCycle: {start: '2026-07-01', end: '2026-07-14'} };
 const SITES = ['AC美', 'BV美', 'UK英', 'EU欧'];
 const CATS = ['飞机杯', '增大器', '龟头训练器'];
 const LAYERS = ['超爆', '爆款', '头部', '腰部', '尾部'];
@@ -251,6 +252,7 @@ function switchPage(page, sub) {
     const map = { site: { all: 'page-site-all', _: 'page-site-detail' }, category: { all: 'page-category-all', _: 'page-category-detail' },
         product: { all: 'page-product-all', focus: 'page-product-focus', _: 'page-product-layer' },
         process: { all: 'page-process-all' }, channel: { all: 'page-channel-all' },
+        change: { uv: 'page-change', aov: 'page-change', orders: 'page-change' },
         operations: { ops: 'page-operations-ops', ads: 'page-operations-ads' },
         review: { ogsms: 'page-review-ogsms', monthly: 'page-review-monthly' },
         strategy: { gen: 'page-strategy-gen', lib: 'page-strategy-lib' } };
@@ -267,6 +269,7 @@ function switchPage(page, sub) {
     else if (page === 'product') renderProductLayer(sub);
     else if (page === 'process') renderProcessCompare();
     else if (page === 'channel') renderChannelChange();
+    else if (page === 'change') renderChangeAnalysis(sub);
     else if (page === 'operations' && sub === 'ops') renderOps();
     else if (page === 'operations' && sub === 'ads') renderAds();
     else if (page === 'review' && sub === 'ogsms') switchOgsmTab('real');
@@ -353,10 +356,12 @@ function renderSiteDetail(site) {
         const sales = p.find(x => x.seriesName === '销售额')?.value || 0;
         const orders = p.find(x => x.seriesName === '单量')?.value || 0;
         const skus = d.layers[name].sku_count || 0;
+        const aov = orders ? Math.round(sales / orders) : 0;
         return `<div style="font-weight:600">${esc(name)}</div>` +
             `<div>销售额：${fmtW(sales)}</div>` +
             `<div>单量：${num(orders)}</div>` +
-            `<div>SKU数量：${num(skus)}</div>`;
+            `<div>SKU数量：${num(skus)}</div>` +
+            `<div>均价：${money(aov)}</div>`;
     } }, grid: { left: 60, right: 50, top: 30, bottom: 30 },
         xAxis: { type: 'category', data: LAYERS, axisLabel: { color: '#94a3b8' } },
         yAxis: [{ type: 'value', name: '销售额', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
@@ -409,6 +414,49 @@ function dualBar(cats, salesArr, orderArr, sName, oName, colorFn) {
                  { name: oName, type: 'line', yAxisIndex: 1, data: orderArr, itemStyle: { color: '#f59e0b' } }] };
 }
 
+/* ----------------- 4 维度指标定义（销售额 / 单量 / SKU数量 / 均价） ----------------- */
+const METRIC_DEF = {
+    sales: { key: 'sales', label: '销售额', short: '销售额', unit: '万元', fmt: v => fmtW(v), axisFmt: v => (v / 10000).toFixed(0), value: r => r.actual_sales || 0, agg: arr => arr.reduce((s, r) => s + (r.actual_sales || 0), 0) },
+    orders: { key: 'orders', label: '单量', short: '单量', unit: '单', fmt: v => num(v), axisFmt: v => v, value: r => r.actual_orders || 0, agg: arr => arr.reduce((s, r) => s + (r.actual_orders || 0), 0) },
+    sku: { key: 'sku', label: 'SKU数量', short: 'SKU数', unit: '个', fmt: v => num(v), axisFmt: v => v, value: r => 1, agg: arr => arr.length },
+    aov: { key: 'aov', label: '均价', short: '均价', unit: '元', fmt: v => money(v), axisFmt: v => v, value: r => (r.actual_orders ? (r.actual_sales || 0) / r.actual_orders : 0), agg: arr => { const o = arr.reduce((s, r) => s + (r.actual_orders || 0), 0); return o ? arr.reduce((s, r) => s + (r.actual_sales || 0), 0) / o : 0; } }
+};
+function metricByLayer(list, metric) { return LAYERS.map(l => { const arr = list.filter(r => r.layer === l); return METRIC_DEF[metric].agg(arr); }); }
+function metricByShop(list, metric, shops) { return shops.map(s => { const arr = list.filter(r => r.site === s); return METRIC_DEF[metric].agg(arr); }); }
+function metricByChannel(list, metric) {
+    return CHANNELS.map(c => {
+        if (metric === 'sku') return list.filter(r => r.channels && r.channels[c] && r.channels[c].orders > 0).length;
+        if (metric === 'aov') {
+            const sales = list.reduce((s, r) => s + (r.channels && r.channels[c] ? r.channels[c].sales || 0 : 0), 0);
+            const orders = list.reduce((s, r) => s + (r.channels && r.channels[c] ? r.channels[c].orders || 0 : 0), 0);
+            return orders ? sales / orders : 0;
+        }
+        return list.reduce((s, r) => s + (r.channels && r.channels[c] ? r.channels[c][metric] || 0 : 0), 0);
+    });
+}
+function metricBarOpt(cats, data, metric, colorFn) {
+    const def = METRIC_DEF[metric];
+    return { tooltip: { trigger: 'axis', formatter: p => `<div style="font-weight:600">${esc(p[0].name)}</div><div>${def.label}：${def.fmt(p[0].value)}</div>` },
+        grid: { left: 60, right: 20, top: 20, bottom: 30 },
+        xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8' } },
+        yAxis: { type: 'value', name: def.label, axisLabel: { color: '#94a3b8', formatter: def.axisFmt } },
+        series: [{ type: 'bar', data: data.map((v, i) => ({ value: v, itemStyle: { color: colorFn ? colorFn(cats[i]) : '#22d3ee', borderRadius: [6, 6, 0, 0] } })), barWidth: '50%' }] };
+}
+function switchCatMetric(m) {
+    state.catMetric = m;
+    document.querySelectorAll('.metric-tabs .ogsm-tab').forEach(b => {
+        if (b.dataset.catMetric === m) b.classList.add('active'); else b.classList.remove('active');
+    });
+    if (state.page === 'category' && state.sub !== 'all') renderCategoryDetail(state.sub);
+}
+function switchProductMetric(m) {
+    state.productMetric = m;
+    document.querySelectorAll('[data-product-metric]').forEach(b => {
+        if (b.dataset.productMetric === m) b.classList.add('active'); else b.classList.remove('active');
+    });
+    if (state.page === 'product' && state.sub === 'all') renderProductAll();
+}
+
 /* ===================================================================
  * 类目 - 汇总 + 深度
  * =================================================================== */
@@ -437,6 +485,8 @@ function renderCategoryAll() {
 function renderCategoryDetail(cat) {
     const shop = document.getElementById('cat-detail-shop').value || '全部店铺';
     const layerF = document.getElementById('cat-detail-layer').value || '全部层级';
+    const metric = state.catMetric || 'orders';
+    const def = METRIC_DEF[metric];
     const d = A.by_category[cat];
     // 从 sku_master 真实聚合(支持店铺/分层二次切分)
     const list = (appData.sku_master || []).filter(r => r.category === cat && (shop === '全部店铺' || r.site === shop) && (layerF === '全部层级' || r.layer === layerF));
@@ -451,32 +501,47 @@ function renderCategoryDetail(cat) {
     document.getElementById('cat-detail-cards').innerHTML = targetHeroHTML({
         scope: '销售额', target: targetSales, actual: sales, orders: orders, aov: aov,
         mom: A.mom.by_category[cat], momLabel: '月度环比', title: cat + ' · 目标对照总览',
-        meta: `${orders} 单 · 客单价 ${money(aov)}` + (shop === '全部店铺' ? '' : ' · ' + shop)
+        meta: `${orders} 单 · 均价 ${money(aov)}` + (shop === '全部店铺' ? '' : ' · ' + shop)
     });
-    // 结构单量
-    const sc = safeInit('cat-detail-structure-chart');
+    // 图表标题随维度切换
+    document.getElementById('cat-detail-structure-title').textContent = '商品结构' + def.label + '分布';
+    document.getElementById('cat-detail-channel-title').textContent = '渠道' + def.label + '分布';
+    document.getElementById('cat-detail-shop-title').textContent = '分店铺' + def.label;
     const layersToShow = layerF === '全部层级' ? LAYERS : [layerF];
-    sc.setOption(barOpt(layersToShow, layersToShow.map(l => list.filter(r => r.layer === l).reduce((s, r) => s + r.actual_orders, 0)), '单量', l => layerColor[l]));
-    // 渠道单量
+    const sc = safeInit('cat-detail-structure-chart');
+    sc.setOption(metricBarOpt(layersToShow, metricByLayer(list, metric), metric, l => layerColor[l]));
     const cc = safeInit('cat-detail-channel-chart');
-    cc.setOption(barOpt(CHANNELS, CHANNELS.map(c => rint(list.reduce((s, r) => s + ((r.channels && r.channels[c] && r.channels[c].orders) || 0), 0))), '单量'));
-    // 分店铺单量
+    cc.setOption(metricBarOpt(CHANNELS, metricByChannel(list, metric), metric));
     const shc = safeInit('cat-detail-shop-chart');
     const shopsToShow = shop === '全部店铺' ? SITES : [shop];
-    shc.setOption(barOpt(shopsToShow, shopsToShow.map(s => list.filter(r => r.site === s).reduce((s, r) => s + r.actual_orders, 0)), '单量', s => siteColor[s]));
-    // 重点单品
+    shc.setOption(metricBarOpt(shopsToShow, metricByShop(list, metric, shopsToShow), metric, s => siteColor[s]));
+    // 四维指标明细
+    let dimRows = '';
+    const addDim = (dim, key, arr) => {
+        const sales = arr.reduce((s, r) => s + r.actual_sales, 0);
+        const orders = arr.reduce((s, r) => s + r.actual_orders, 0);
+        const aov = orders ? sales / orders : 0;
+        dimRows += `<tr><td>${dim}</td><td>${key}</td><td class="num">${fmtW(sales)}</td><td class="num">${num(orders)}</td><td class="num">${num(arr.length)}</td><td class="num">${money(aov)}</td></tr>`;
+    };
+    LAYERS.forEach(l => addDim('分层', l, list.filter(r => r.layer === l)));
+    SITES.forEach(s => addDim('站点', s, list.filter(r => r.site === s)));
+    CHANNELS.forEach(c => addDim('渠道', c, list.filter(r => r.channels && r.channels[c] && r.channels[c].orders > 0)));
+    document.getElementById('cat-detail-dimension-body').innerHTML = dimRows || '<tr><td colspan="6">无数据</td></tr>';
+    // 重点单品：增加销售额/均价维度
     list.sort((a, b) => b.actual_orders - a.actual_orders);
-    document.getElementById('cat-detail-focus-sub').textContent = `共 ${list.length} 个单品 · 点击货号看本周期深度`;
+    document.getElementById('cat-detail-focus-sub').textContent = `共 ${list.length} 个单品 · 当前维度：${def.label}`;
     let rows = '';
     list.slice(0, 40).forEach(r => {
         const p = r.target_orders ? (r.actual_orders / r.target_orders * 100) : 0;
-        rows += `<tr><td>${esc(r.ns_code)}</td><td>${r.site}</td><td>${esc(r.owner)}</td>
-            <td class="num">${num(r.last_month_sales)}</td><td class="num">${num(r.target_orders)}</td>
-            <td class="num">${num(r.actual_orders)}</td><td class="num"><span class="tag tag-${cls(p)}">${pct(p)}</span></td>
-            <td>${r.layer}</td><td>${r.change_type}</td>
-            <td><button class="btn btn-mini" onclick="openSkuModal('${esc(r.ns_code)}','${r.site}')">深度</button></td></tr>`;
+        const rAov = r.actual_orders ? r.actual_sales / r.actual_orders : 0;
+        rows += `<tr><td>${esc(r.ns_code)}</td><td>${r.site}</td><td>${esc(r.owner)}</td>` +
+            `<td class="num">${num(r.last_month_sales)}</td><td class="num">${fmtW(r.actual_sales)}</td>` +
+            `<td class="num">${num(r.target_orders)}</td><td class="num">${num(r.actual_orders)}</td>` +
+            `<td class="num"><span class="tag tag-${cls(p)}">${pct(p)}</span></td>` +
+            `<td>${r.layer}</td><td class="num">${money(rAov)}</td><td>${r.change_type}</td>` +
+            `<td><button class="btn btn-mini" onclick="openSkuModal('${esc(r.ns_code)}','${r.site}')">深度</button></td></tr>`;
     });
-    document.getElementById('cat-detail-focus-body').innerHTML = rows || '<tr><td colspan="10">无数据</td></tr>';
+    document.getElementById('cat-detail-focus-body').innerHTML = rows || '<tr><td colspan="12">无数据</td></tr>';
 }
 function barOpt(cats, data, name, colorFn) {
     return { tooltip: { trigger: 'axis' }, grid: { left: 60, right: 20, top: 20, bottom: 30 },
@@ -491,29 +556,68 @@ function barOpt(cats, data, name, colorFn) {
 function renderProductAll() {
     const shop = document.getElementById('product-shop').value || '全部店铺';
     const layerF = document.getElementById('product-layer').value || '全部层级';
+    const metric = state.productMetric || 'sales';
+    const def = METRIC_DEF[metric];
     const list = (appData.sku_master || []).filter(r => (shop === '全部店铺' || r.site === shop) && (layerF === '全部层级' || r.layer === layerF));
+    document.getElementById('product-structure-title').textContent = '商品结构层' + def.label + '（实际）';
+    document.getElementById('product-trend-title').textContent = '结构层实际 vs 目标结构（' + def.label + '）';
+    // 结构图：按指标用柱状图
     const pc = safeInit('product-structure-chart');
-    pc.setOption(pieOpt(LAYERS.map(l => ({ name: l, value: list.filter(r => r.layer === l).reduce((s, r) => s + r.actual_sales, 0) })), '销售额'));
+    pc.setOption(metricBarOpt(LAYERS, metricByLayer(list, metric), metric, l => layerColor[l]));
+    // 实际 vs 目标：销售额/单量有目标，SKU/均价仅展示实际
     const pt = safeInit('product-trend-chart');
-    const actual = LAYERS.map(l => list.filter(r => r.layer === l).reduce((s, r) => s + r.actual_sales, 0));
-    const target = LAYERS.map(l => list.filter(r => r.layer === l).reduce((s, r) => s + (r.target_orders || 0) * r.aov, 0));
-    pt.setOption({ tooltip: { trigger: 'axis' }, legend: { data: ['实际', '目标'], textStyle: { color: '#94a3b8' } },
+    const actual = metricByLayer(list, metric);
+    let series = [{ name: '实际', type: 'bar', data: actual, itemStyle: { color: '#22d3ee', borderRadius: [6, 6, 0, 0] } }];
+    if (metric === 'sales' || metric === 'orders') {
+        const target = LAYERS.map(l => {
+            const arr = list.filter(r => r.layer === l);
+            if (metric === 'sales') return arr.reduce((s, r) => s + (r.target_orders || 0) * r.aov, 0);
+            return arr.reduce((s, r) => s + (r.target_orders || 0), 0);
+        });
+        series.push({ name: '目标', type: 'bar', data: target, itemStyle: { color: '#475569', borderRadius: [6, 6, 0, 0] } });
+    }
+    pt.setOption({ tooltip: { trigger: 'axis' }, legend: { data: series.map(s => s.name), textStyle: { color: '#94a3b8' } },
         grid: { left: 60, right: 20, top: 30, bottom: 30 },
         xAxis: { type: 'category', data: LAYERS, axisLabel: { color: '#94a3b8' } },
-        yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
-        series: [{ name: '实际', type: 'bar', data: actual, itemStyle: { color: '#22d3ee', borderRadius: [6, 6, 0, 0] } },
-                 { name: '目标', type: 'bar', data: target, itemStyle: { color: '#475569', borderRadius: [6, 6, 0, 0] } }] });
-    list.sort((a, b) => b.actual_orders - a.actual_orders);
-    let rows = '';
-    list.slice(0, 80).forEach(r => {
-        const prog = r.target_orders ? (r.actual_orders / r.target_orders * 100) : 0;
-        rows += `<tr><td>${esc(r.ns_code)}</td><td>${r.category}</td><td>${r.site}</td>
-            <td class="num">${num(r.target_orders)}</td><td class="num">${num(r.actual_orders)}</td>
-            <td class="num"><span class="tag tag-${cls(prog)}">${pct(prog)}</span></td>
-            <td>${r.layer}</td><td>${r.change_type}</td><td>${esc(r.owner)}</td>
-            <td><button class="btn btn-mini" onclick="openSkuModal('${esc(r.ns_code)}','${r.site}')">深度</button></td></tr>`;
+        yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: def.axisFmt } },
+        series });
+    // 结构层四维指标明细
+    let dimRows = '';
+    LAYERS.forEach(l => {
+        const arr = list.filter(r => r.layer === l);
+        const sales = arr.reduce((s, r) => s + r.actual_sales, 0);
+        const orders = arr.reduce((s, r) => s + r.actual_orders, 0);
+        const targetSales = arr.reduce((s, r) => s + (r.target_orders || 0) * r.aov, 0);
+        const targetOrders = arr.reduce((s, r) => s + (r.target_orders || 0), 0);
+        const aov = orders ? sales / orders : 0;
+        dimRows += `<tr><td>${l}</td><td class="num">${fmtW(sales)}</td><td class="num">${num(orders)}</td><td class="num">${num(arr.length)}</td><td class="num">${money(aov)}</td><td class="num">${fmtW(targetSales)}</td><td class="num">${num(targetOrders)}</td></tr>`;
     });
-    document.getElementById('product-table-body').innerHTML = rows || '<tr><td colspan="10">无数据</td></tr>';
+    document.getElementById('product-dimension-body').innerHTML = dimRows || '<tr><td colspan="7">无数据</td></tr>';
+    // SKU 列表：按货号合并四站点
+    const bySku = {};
+    list.forEach(r => {
+        if (!bySku[r.ns_code]) bySku[r.ns_code] = { ns_code: r.ns_code, category: r.category, sites: {} };
+        bySku[r.ns_code].sites[r.site] = r;
+    });
+    const skuRows = Object.values(bySku).sort((a, b) => {
+        const ta = SITES.reduce((s, site) => s + (a.sites[site] ? a.sites[site].actual_orders : 0), 0);
+        const tb = SITES.reduce((s, site) => s + (b.sites[site] ? b.sites[site].actual_orders : 0), 0);
+        return tb - ta;
+    });
+    let rows = '';
+    skuRows.slice(0, 80).forEach(g => {
+        const totalOrders = SITES.reduce((s, site) => s + (g.sites[site] ? g.sites[site].actual_orders : 0), 0);
+        const totalSales = SITES.reduce((s, site) => s + (g.sites[site] ? g.sites[site].actual_sales : 0), 0);
+        let siteCells = '';
+        SITES.forEach(site => {
+            const r = g.sites[site];
+            if (!r) { siteCells += '<td class="num">—</td>'; return; }
+            const prog = r.target_orders ? (r.actual_orders / r.target_orders * 100) : 0;
+            siteCells += `<td class="num"><div>${num(r.actual_orders)}</div><div><span class="tag tag-${cls(prog)}">${pct(prog)}</span></div><div><button class="btn btn-mini" style="margin-top:2px;" onclick="openSkuModal('${esc(r.ns_code)}','${r.site}')">深度</button></div></td>`;
+        });
+        rows += `<tr><td>${esc(g.ns_code)}</td><td>${g.category}</td>${siteCells}<td class="num"><div>${num(totalOrders)}</div><div>${fmtW(totalSales)}</div></td><td></td></tr>`;
+    });
+    document.getElementById('product-table-body').innerHTML = rows || '<tr><td colspan="8">无数据</td></tr>';
 }
 function renderProductLayer(layer) {
     const d = A.by_layer[layer];
@@ -1190,6 +1294,150 @@ function renderChannelChange() {
         xAxis: { type: 'category', data: cats, axisLabel: { color: '#94a3b8' } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
         series: [{ type: 'bar', data: sData, itemStyle: { color: p => sData[p.dataIndex] >= 0 ? '#22c55e' : '#ef4444', borderRadius: [6, 6, 0, 0] } }] });
+}
+
+/* ===================================================================
+ * 变化分析（UV / 客单价 / 单量）
+ * =================================================================== */
+const CHANGE_DEF = {
+    uv: { key: 'uv', label: 'UV', unit: '人', fmt: v => num(Math.round(v)), deltaFmt: v => num(Math.round(v)), axisFmt: v => num(Math.round(v)), value: d => (d.orders || 0) / ((d.conv || 0) || 1), skuValue: r => (r.actual_orders || 0) / ((r.conv || 0) || 1) },
+    aov: { key: 'aov', label: '客单价', unit: '元', fmt: v => money(v), deltaFmt: v => money(v), axisFmt: v => money(v), value: d => (d.sales || 0) / ((d.orders || 0) || 1), skuValue: r => (r.actual_orders ? (r.actual_sales || 0) / r.actual_orders : 0) },
+    orders: { key: 'orders', label: '单量', unit: '单', fmt: v => num(v), deltaFmt: v => num(v), axisFmt: v => num(v), value: d => d.orders || 0, skuValue: r => r.actual_orders || 0 }
+};
+function getChangePrevMonth() { return appData.actuals ? Object.keys(appData.actuals).find(m => m !== state.month && parseInt(m) < parseInt(state.month)) : '6月'; }
+function valueBy(metric, d) { return CHANGE_DEF[metric].value(d); }
+function buildChangeRows(items, curFn, prevFn, metric, totalDelta) {
+    return items.map(k => {
+        const cur = valueBy(metric, curFn(k)), prev = valueBy(metric, prevFn(k));
+        const delta = cur - prev;
+        const pct = prev ? (delta / prev * 100) : 0;
+        const contrib = totalDelta ? (delta / Math.abs(totalDelta) * 100) : 0;
+        return { key: k, cur, prev, delta, pct, contrib };
+    }).sort((a, b) => b.delta - a.delta);
+}
+function changeTable(rows, title, metric) {
+    const def = CHANGE_DEF[metric];
+    if (!rows.length) return '';
+    let html = `<div style="margin-bottom:20px;"><div style="font-size:13px;font-weight:600;color:var(--radium-text-strong);margin-bottom:8px;">${esc(title)}</div><table class="data-table"><thead><tr><th>维度</th><th class="num">本期</th><th class="num">上期</th><th class="num">变化</th><th class="num">变化率</th><th class="num">贡献度</th></tr></thead><tbody>`;
+    rows.forEach(r => {
+        html += `<tr><td>${esc(r.key)}</td><td class="num">${def.fmt(r.cur)}</td><td class="num">${def.fmt(r.prev)}</td>` +
+            `<td class="num"><span class="tag tag-${r.delta >= 0 ? 'green' : 'red'}">${r.delta >= 0 ? '+' : ''}${def.deltaFmt(r.delta)}</span></td>` +
+            `<td class="num"><span class="tag tag-${r.pct >= 0 ? 'green' : 'red'}">${r.pct >= 0 ? '+' : ''}${r.pct.toFixed(1)}%</span></td>` +
+            `<td class="num">${Math.abs(r.contrib).toFixed(1)}%</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    return html;
+}
+function changeSuggestions(metric, totalDelta, siteRows, catRows, layerRows, channelRows) {
+    const up = totalDelta >= 0;
+    const def = CHANGE_DEF[metric];
+    const topPos = siteRows.filter(r => r.delta > 0).slice(0, 2);
+    const topNeg = siteRows.filter(r => r.delta < 0).slice(0, 2);
+    const topCatPos = catRows.filter(r => r.delta > 0).slice(0, 2);
+    const topCatNeg = catRows.filter(r => r.delta < 0).slice(0, 2);
+    const topChPos = channelRows.filter(r => r.delta > 0).slice(0, 2);
+    const topChNeg = channelRows.filter(r => r.delta < 0).slice(0, 2);
+    let bullets = [];
+    if (up) {
+        bullets.push(`整体 ${def.label} 环比上涨 ${def.deltaFmt(totalDelta)}，增长主要由 ${topPos.map(r => r.key).join('、')} 等站点/渠道拉动。`);
+        if (topCatPos.length) bullets.push(`类目层面，${topCatPos.map(r => r.key).join('、')} 贡献最大，建议保持当前运营动作并复制到弱势类目。`);
+        if (topChPos.length) bullets.push(`渠道层面，${topChPos.map(r => r.key).join('、')} 流量/转化改善明显，可加大投入。`);
+    } else {
+        bullets.push(`整体 ${def.label} 环比下滑 ${def.deltaFmt(Math.abs(totalDelta))}，拖累项集中在 ${topNeg.map(r => r.key).join('、')}。`);
+        if (topCatNeg.length) bullets.push(`类目层面，${topCatNeg.map(r => r.key).join('、')} 下滑明显，需检查库存、价格、主图或评价。`);
+        if (topChNeg.length) bullets.push(`渠道层面，${topChNeg.map(r => r.key).join('、')} 出现负贡献，建议复盘投放策略或调整渠道预算分配。`);
+    }
+    // 指标-specific advice
+    if (metric === 'uv') bullets.push(`UV 变化受流量规模影响：若 UV 下滑，优先检查 SEM/信息流/站外引流投入；若 UV 上升但转化低，需优化落地页与详情页承接。`);
+    if (metric === 'aov') bullets.push(`客单价变化多由折扣、套装、关联销售驱动：下滑时检查促销力度、满减门槛、搭配购；上升时关注高客单 SKU 的库存与转化。`);
+    if (metric === 'orders') bullets.push(`单量变化 = UV × 转化率，需拆分流量与转化两个环节：流量下降找渠道，转化率下降找 Listing/价格/评价。`);
+    bullets.push(`下钻路径：先定位站点/类目/渠道，再打开对应单品深度，查看「运营动作」与「建议」板块，针对性制定动作。`);
+    return '<ul style="margin-left:16px;font-size:13px;line-height:1.8;color:var(--radium-text-primary);"><li>' + bullets.map(esc).join('</li><li>') + '</li></ul>';
+}
+function switchChangePage(metric) {
+    state.changeMetric = metric;
+    document.getElementById('change-metric').value = metric;
+    if (state.page === 'change') renderChangeAnalysis(metric);
+}
+function renderChangeAnalysis(metric) {
+    metric = metric || state.changeMetric || 'uv';
+    state.changeMetric = metric;
+    const mSel = document.getElementById('change-metric'); if (mSel && mSel.value !== metric) mSel.value = metric;
+    const prevMonth = getChangePrevMonth() || '6月';
+    const prev = appData.actuals[prevMonth];
+    const cur = A;
+    if (!prev || !cur) { document.getElementById('change-dimension-tables').innerHTML = '<div class="empty-state-desc">缺少对比周期数据</div>'; return; }
+    const def = CHANGE_DEF[metric];
+    const period = document.getElementById('change-period') ? document.getElementById('change-period').value : 'prev';
+    const pace = period === 'prev_paced' ? (100 / state.timeProgress) : 1;
+    document.getElementById('change-title').textContent = def.label + '变化分析';
+    // 总值
+    const curTotalRaw = valueBy(metric, cur.total);
+    const curTotal = curTotalRaw * pace;
+    const prevTotal = valueBy(metric, prev.total);
+    const totalDelta = curTotal - prevTotal;
+    const totalPct = prevTotal ? (totalDelta / prevTotal * 100) : 0;
+    document.getElementById('change-summary').innerHTML = `<div class="grid-4">` +
+        `<div class="stat-card"><div class="stat-card-label">本期${def.label}</div><div class="stat-card-value cyan">${def.fmt(curTotal)}</div></div>` +
+        `<div class="stat-card"><div class="stat-card-label">上期${def.label}</div><div class="stat-card-value">${def.fmt(prevTotal)}</div></div>` +
+        `<div class="stat-card"><div class="stat-card-label">变化</div><div class="stat-card-value ${totalDelta >= 0 ? 'green' : 'red'}">${totalDelta >= 0 ? '+' : ''}${def.deltaFmt(totalDelta)}</div></div>` +
+        `<div class="stat-card"><div class="stat-card-label">变化率</div><div class="stat-card-value ${totalPct >= 0 ? 'green' : 'red'}">${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(1)}%</div></div>` +
+        `</div>`;
+    // 维度拆解
+    const siteRows = buildChangeRows(SITES, s => cur.by_site[s], s => prev.by_site[s], metric, totalDelta);
+    siteRows.forEach(r => { r.cur = r.cur * pace; r.delta = r.cur - r.prev; r.pct = r.prev ? (r.delta / r.prev * 100) : 0; });
+    const catRows = buildChangeRows(CATS, c => cur.by_category[c], c => prev.by_category[c], metric, totalDelta);
+    catRows.forEach(r => { r.cur = r.cur * pace; r.delta = r.cur - r.prev; r.pct = r.prev ? (r.delta / r.prev * 100) : 0; });
+    const layerRows = buildChangeRows(LAYERS, l => cur.by_layer[l], l => prev.by_layer[l], metric, totalDelta);
+    layerRows.forEach(r => { r.cur = r.cur * pace; r.delta = r.cur - r.prev; r.pct = r.prev ? (r.delta / r.prev * 100) : 0; });
+    const channelRows = buildChangeRows(CHANNELS, ch => {
+        const o = { orders: 0, sales: 0, conv: 0, conv_w: 0 };
+        SITES.forEach(s => { const c = cur.by_site[s].channels[ch]; if (c) { o.orders += c.orders || 0; o.sales += c.sales || 0; o.conv += (c.conv || 0) * (c.orders || 0); o.conv_w += c.orders || 0; } });
+        o.conv = o.conv_w ? o.conv / o.conv_w : 0; return o;
+    }, ch => {
+        const o = { orders: 0, sales: 0, conv: 0, conv_w: 0 };
+        SITES.forEach(s => { const c = prev.by_site[s].channels[ch]; if (c) { o.orders += c.orders || 0; o.sales += c.sales || 0; o.conv += (c.conv || 0) * (c.orders || 0); o.conv_w += c.orders || 0; } });
+        o.conv = o.conv_w ? o.conv / o.conv_w : 0; return o;
+    }, metric, totalDelta);
+    channelRows.forEach(r => { r.cur = r.cur * pace; r.delta = r.cur - r.prev; r.pct = r.prev ? (r.delta / r.prev * 100) : 0; });
+    // 瀑布图：各维度变化
+    const wf = safeInit('change-waterfall-chart');
+    const wfItems = [].concat(
+        siteRows.map(r => ({ name: r.key, value: r.delta, color: siteColor[r.key] })),
+        catRows.map(r => ({ name: r.key, value: r.delta })),
+        layerRows.map(r => ({ name: r.key, value: r.delta, color: layerColor[r.key] })),
+        channelRows.map(r => ({ name: r.key, value: r.delta }))
+    ).sort((a, b) => b.value - a.value);
+    wf.setOption({ tooltip: { trigger: 'axis', formatter: p => `${esc(p[0].name)}：${p[0].value >= 0 ? '+' : ''}${def.deltaFmt(p[0].value)}` }, grid: { left: 80, right: 20, top: 20, bottom: 60 },
+        xAxis: { type: 'category', data: wfItems.map(x => x.name), axisLabel: { color: '#94a3b8', rotate: 45, interval: 0 } },
+        yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: def.axisFmt ? def.axisFmt : v => v } },
+        series: [{ type: 'bar', data: wfItems.map(x => ({ value: x.value, itemStyle: { color: x.value >= 0 ? '#22c55e' : '#ef4444' } })), barWidth: '50%' }] });
+    // Top 正负贡献图
+    const topItems = [].concat(siteRows, catRows, layerRows, channelRows).sort((a, b) => b.delta - a.delta);
+    const topPos = topItems.slice(0, 8), topNeg = topItems.slice(-8).reverse();
+    const tc = safeInit('change-top-chart');
+    tc.setOption({ tooltip: { trigger: 'axis' }, grid: { left: 80, right: 20, top: 20, bottom: 60 },
+        xAxis: { type: 'category', data: topPos.concat(topNeg).map(r => r.key), axisLabel: { color: '#94a3b8', rotate: 45, interval: 0 } },
+        yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: def.axisFmt ? def.axisFmt : v => v } },
+        series: [{ type: 'bar', data: topPos.concat(topNeg).map(r => ({ value: r.delta, itemStyle: { color: r.delta >= 0 ? '#22c55e' : '#ef4444' } })), barWidth: '50%' }] });
+    // 维度明细表
+    document.getElementById('change-dimension-tables').innerHTML =
+        changeTable(siteRows, '按站点', metric) +
+        changeTable(catRows, '按类目', metric) +
+        changeTable(layerRows, '按产品定位', metric) +
+        changeTable(channelRows, '按渠道', metric);
+    // 单品驱动明细：按当前指标排序
+    const skuList = (appData.sku_master || []).slice().sort((a, b) => def.skuValue(b) - def.skuValue(a)).slice(0, 40);
+    let skuRows = '';
+    skuList.forEach(r => {
+        const v = def.skuValue(r);
+        skuRows += `<tr><td>${esc(r.ns_code)}</td><td>${r.category}</td><td>${r.site}</td>` +
+            `<td class="num">${def.fmt(v)}</td><td class="num">${num(r.actual_orders)}</td><td class="num">${money(r.actual_orders ? r.actual_sales / r.actual_orders : 0)}</td>` +
+            `<td><button class="btn btn-mini" onclick="openSkuModal('${esc(r.ns_code)}','${r.site}')">深度</button></td></tr>`;
+    });
+    document.getElementById('change-sku-table').innerHTML = '<table class="data-table"><thead><tr><th>货号</th><th>类目</th><th>站点</th><th class="num">当前' + def.label + '</th><th class="num">单量</th><th class="num">均价</th><th>操作</th></tr></thead><tbody>' + (skuRows || '<tr><td colspan="7">无数据</td></tr>') + '</tbody></table>';
+    // 建议
+    document.getElementById('change-suggestions').innerHTML = changeSuggestions(metric, totalDelta, siteRows, catRows, layerRows, channelRows);
 }
 
 /* ===================================================================
