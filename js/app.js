@@ -100,10 +100,15 @@ function targetHeroHTML(o) {
     const status = cls(rate, tp);                        // pos / warn / neg
     const hi = rate > 100 ? 100 : rate;
     const momTxt = (o.mom != null) ? `${pct(o.mom)}` : '';
+    const aovHtml = (o.aov != null) ? `<div class="th-card k-aov">
+          <div class="th-label">客单价</div>
+          <div class="th-num">${money(o.aov)}</div>
+          <div class="th-sub">${o.orders != null ? num(o.orders) + ' 单' : '按订单加权'}</div>
+        </div>` : '';
     const convHtml = (o.conv != null) ? `<div class="th-card k-conv">
           <div class="th-label">转化率</div>
           <div class="th-num">${pct(o.conv * 100)}</div>
-          <div class="th-sub">${scope === '销售额' && o.aov != null ? '客单价 ' + money(o.aov) : '按订单加权'}</div>
+          <div class="th-sub">按订单加权</div>
         </div>` : '';
     return `<div class="target-hero">
       <div class="th-head">
@@ -119,7 +124,7 @@ function targetHeroHTML(o) {
         <div class="th-card k-done">
           <div class="th-label">${scope === '单量' ? '完成单量' : '完成销售额'}</div>
           <div class="th-num">${fmt(actual)}</div>
-          <div class="th-sub">${o.orders != null ? num(o.orders) + ' 单 · ' : ''}${scope === '单量' ? '实际单量' : '客单价 ' + (o.aov != null ? money(o.aov) : '—')}</div>
+          <div class="th-sub">${o.orders != null ? num(o.orders) + ' 单' : (scope === '单量' ? '实际单量' : '实际完成')}</div>
         </div>
         <div class="th-card k-rate">
           <div class="th-label">${scope === '单量' ? '单量完成进度' : '销售进度（目标进度）'}</div>
@@ -131,6 +136,7 @@ function targetHeroHTML(o) {
           <div class="th-num">${pct(estRate)}</div>
           <div class="th-sub">预估全月 ${fmt(estFull)} · ${gap >= 0 ? '盈余 ' : '缺口 '}${fmt(Math.abs(gap))}</div>
         </div>
+        ${aovHtml}
         ${convHtml}
       </div>
       <div class="th-progress-wrap">

@@ -805,7 +805,7 @@ input[type="checkbox"] {
 .th-meta { font-size: 12px; color: var(--radium-text-muted); }
 .th-meta b { color: var(--radium-accent-cyan); font-weight: 600; }
 
-.th-cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+.th-cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
 .th-card {
     background: var(--radium-bg-card);
     border: 1px solid var(--radium-border);
@@ -819,6 +819,7 @@ input[type="checkbox"] {
 .th-card.k-rate::before { background: var(--radium-accent-yellow); }
 .th-card.k-est::before { background: var(--radium-accent-purple); }
 .th-card.k-conv::before { background: var(--radium-accent-green); }
+.th-card.k-aov::before { background: var(--radium-accent-pink); }
 .th-card .th-label { font-size: 11px; color: var(--radium-text-muted); letter-spacing: .5px; text-transform: uppercase; }
 .th-card .th-num { font-size: 24px; font-weight: 700; margin: 6px 0 2px; color: var(--radium-text-strong); line-height: 1.15; }
 .th-card.k-target .th-num { color: var(--radium-accent-blue); }
@@ -826,6 +827,7 @@ input[type="checkbox"] {
 .th-card.k-rate .th-num { color: var(--radium-accent-yellow); }
 .th-card.k-est .th-num { color: var(--radium-accent-purple); }
 .th-card.k-conv .th-num { color: var(--radium-accent-green); }
+.th-card.k-aov .th-num { color: var(--radium-accent-pink); }
 .th-card .th-sub { font-size: 11px; color: var(--radium-text-muted); }
 
 /* 进度条 + 时间刻度标记 */
@@ -843,7 +845,7 @@ input[type="checkbox"] {
 @media (max-width: 1200px) {
     .grid-4 { grid-template-columns: repeat(2, 1fr); }
     .grid-5 { grid-template-columns: repeat(3, 1fr); }
-    .th-cards { grid-template-columns: repeat(2, 1fr); }
+    .th-cards { grid-template-columns: repeat(3, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -852,6 +854,7 @@ input[type="checkbox"] {
     .sidebar-title, .sidebar-item-text { display: none; }
     .sidebar-item { justify-content: center; }
     .grid-2, .grid-3, .grid-4, .grid-5 { grid-template-columns: 1fr; }
+    .th-cards { grid-template-columns: 1fr; }
 }
 
 /* ===== 数据来源 / 公式 说明弹窗 ===== */
