@@ -61,6 +61,34 @@ def load_real_targets():
         return {}
 
 real = load_real_targets()
+
+def load_price_conv_targets():
+    """从《6月目标与规则》读取 客单价目标(price_targets) 与 转化率目标(conv_targets)，可复现"""
+    res = {'price_targets': {}, 'conv_targets': {}}
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(SRC_XLSX, data_only=True)
+        # 客单价目标: 月份|站点|分组|运营分类|客单价目标（原币）
+        ws = wb['客单价目标']
+        for r in range(2, ws.max_row + 1):
+            site = ws.cell(r, 2).value
+            val = ws.cell(r, 5).value
+            if site and isinstance(val, (int, float)):
+                res['price_targets'][str(site)] = round(float(val), 2)
+        # 转化率目标: 站点|运营分类|站点分类|6月转化率目标（取"汇总"行，仅 BV美 有值 0.016）
+        ws2 = wb['转化率目标']
+        for r in range(2, ws2.max_row + 1):
+            site = ws2.cell(r, 1).value
+            cat = ws2.cell(r, 2).value
+            val = ws2.cell(r, 4).value
+            if site and cat and '汇总' in str(cat) and isinstance(val, (int, float)) and str(site) not in res['conv_targets']:
+                res['conv_targets'][str(site)] = round(float(val), 4)
+    except Exception as e:
+        print('客单价/转化率目标读取失败:', e)
+    return res
+
+PC = load_price_conv_targets()
+
 TARGETS = {}
 for m in MONTHS:
     TARGETS[m] = {}
@@ -707,7 +735,7 @@ out = {
     'ogsm_config': build_ogsm_config(CUR),
     'ogsm_july': build_ogsm_july(),
     'strategies': prev.get('strategies', []), 'records': prev.get('records', []),
-    'price_targets': prev.get('price_targets', {}), 'struct_targets': prev.get('struct_targets', {}),
+    'price_targets': PC['price_targets'], 'conv_targets': PC['conv_targets'], 'struct_targets': prev.get('struct_targets', {}),
     'stats': prev.get('stats', {}),
 }
 # ---- 数据层一致性校验闸门（任一项失败即中断构建）----

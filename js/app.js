@@ -103,12 +103,12 @@ function targetHeroHTML(o) {
     const aovHtml = (o.aov != null) ? `<div class="th-card k-aov">
           <div class="th-label">客单价</div>
           <div class="th-num">${money(o.aov)}</div>
-          <div class="th-sub">${o.orders != null ? num(o.orders) + ' 单' : '按订单加权'}</div>
+          <div class="th-sub">${o.target_aov != null ? '目标 ' + money(o.target_aov) + ' · 达成 ' + pct(o.aov / o.target_aov * 100) : (o.orders != null ? num(o.orders) + ' 单' : '按订单加权')}</div>
         </div>` : '';
     const convHtml = (o.conv != null) ? `<div class="th-card k-conv">
           <div class="th-label">转化率</div>
           <div class="th-num">${pct(o.conv * 100)}</div>
-          <div class="th-sub">按订单加权</div>
+          <div class="th-sub">${o.target_conv != null ? '目标 ' + pct(o.target_conv * 100) + ' · 口径待对齐' : '暂无目标'}</div>
         </div>` : '';
     return `<div class="target-hero">
       <div class="th-head">
@@ -291,8 +291,13 @@ function switchPage(page, sub) {
  * =================================================================== */
 function renderSiteAll() {
     const t = A.total, tgt = t.target_sales || 0;
+    // 客单价目标：各站点销售额加权混合
+    let aovNum = 0, aovDen = 0;
+    SITES.forEach(s => { const ta = (appData.price_targets || {})[s] || 0; aovNum += A.by_site[s].sales * ta; aovDen += A.by_site[s].sales; });
+    const blendedAovTarget = aovDen ? aovNum / aovDen : 0;
     document.getElementById('site-summary-cards').innerHTML = targetHeroHTML({
         scope: '销售额', target: tgt, actual: t.sales, orders: t.orders, aov: t.aov,
+        target_aov: blendedAovTarget, target_conv: null,
         mom: A.mom.total, momLabel: '全站环比', title: '全部站点 · 目标对照总览',
         meta: `${SITES.length} 店铺合并`
     });
@@ -348,6 +353,7 @@ function renderSiteDetail(site) {
     document.getElementById('shop-detail-subtitle').textContent = site + ' 维度 · 总销售/目标/进度 + 分渠道/类目/分层 + UV/客单价/单量变化分析 + 单品下钻';
     document.getElementById('shop-detail-cards').innerHTML = targetHeroHTML({
         scope: '销售额', target: d.target_sales, actual: d.sales, orders: d.orders, aov: d.aov, conv: d.conv,
+        target_aov: (appData.price_targets || {})[site], target_conv: (appData.conv_targets || {})[site],
         mom: A.mom.by_site[site], momLabel: '当月环比', title: site + ' · 目标对照总览',
         meta: `目标进度 ${pct(d.target_progress)} · SKU ${num(d.sku_count)}`
     });
@@ -507,9 +513,18 @@ function renderCategoryDetail(cat) {
     const prog = targetSales ? (sales / targetSales * 100) : 0;
     const gap = sales - targetSales * state.timeProgress / 100;
     const aov = orders ? sales / orders : 0;
+    const taMap = appData.price_targets || {}, tcMap = appData.conv_targets || {};
+    let catTargetAov = 0;
+    if (shop === '全部店铺') {
+        let num = 0, den = 0;
+        SITES.forEach(s => { const ps = list.filter(r => r.site === s).reduce((a, r) => a + r.actual_sales, 0); num += ps * (taMap[s] || 0); den += ps; });
+        catTargetAov = den ? num / den : 0;
+    } else { catTargetAov = taMap[shop] || 0; }
+    const catTargetConv = shop === '全部店铺' ? null : (tcMap[shop] || null);
     document.getElementById('cat-detail-title').textContent = cat + (shop === '全部店铺' ? '' : ' · ' + shop);
     document.getElementById('cat-detail-cards').innerHTML = targetHeroHTML({
         scope: '销售额', target: targetSales, actual: sales, orders: orders, aov: aov,
+        target_aov: catTargetAov, target_conv: catTargetConv,
         mom: A.mom.by_category[cat], momLabel: '月度环比', title: cat + ' · 目标对照总览',
         meta: `${orders} 单 · 均价 ${money(aov)}` + (shop === '全部店铺' ? '' : ' · ' + shop)
     });
