@@ -1896,20 +1896,22 @@ function mapOgsmShops(field) {
 }
 // 从真实 OGSM 行的 目标/衡量 解析可量化指标
 function parseOgsmRow(row) {
-    const text = (row['目标'] || '') + '\n' + (row['衡量'] || '');
+    const goalText = (row['目标'] || '');
+    const measureText = (row['衡量'] || '');
     const shops = mapOgsmShops(row['落地店铺']);
     let cat = null;
-    if (text.indexOf('飞机杯') >= 0) cat = '飞机杯';
-    else if (text.indexOf('增大器') >= 0) cat = '增大器';
-    let metric = 'sales', target = 0, ok = false;
-    const mConv = text.match(/转化率[^\d]*(\d+(?:\.\d+)?)\s*%/);
-    const mOrd = text.match(/单量[^\d]*(\d+(?:\.\d+)?)/);
-    const mAov = text.match(/(?:客单价|均价|原币客单价)[^\d]*(\d+(?:\.\d+)?)/);
-    const mSales = text.match(/目标[：:]\s*([\d,]+(?:\.\d+)?)/);
-    if (mConv) { metric = 'conv'; target = parseFloat(mConv[1]); ok = true; }
-    else if (mOrd) { metric = 'orders'; target = parseFloat(mOrd[1]); ok = true; }
-    else if (mAov) { metric = 'aov'; target = parseFloat(mAov[1]); ok = true; }
-    else if (mSales) { metric = 'sales'; target = parseFloat(mSales[1].replace(/,/g, '')); ok = true; }
+    if (goalText.indexOf('飞机杯') >= 0) cat = '飞机杯';
+    else if (goalText.indexOf('增大器') >= 0) cat = '增大器';
+    // 先按「衡量」判定指标类型（衡量是字段语义，比在整段文字里猜数字可靠）
+    let metric = 'sales';
+    if (/客单价|均价|原币客单价/.test(measureText)) metric = 'aov';
+    else if (/转化率/.test(measureText)) metric = 'conv';
+    else if (/单量|订单/.test(measureText)) metric = 'orders';
+    else metric = 'sales';
+    // 目标数值统一从「目标」字段抽取（"目标：123" 或首个数字）
+    const mNum = goalText.match(/目标[：:]\s*([\d,]+(?:\.\d+)?)/) || goalText.match(/([\d,]+(?:\.\d+)?)/);
+    const ok = !!mNum;
+    const target = mNum ? parseFloat(mNum[1].replace(/,/g, '')) : 0;
     return { ok, metric, target, cat, shops };
 }
 // 取站点×类目 交叉实际（来自站点/类目汇总，当前为合成值）
