@@ -88,7 +88,7 @@
                     <p class="page-subtitle" id="site-summary-sub">4 店铺合并 · 目标 × 实际 × 时间进度 核心指标</p></div>
                 <div class="page-actions"><span class="tag tag-cyan" id="site-summary-badge"></span></div>
             </div>
-            <details class="calc-note" open>
+            <details class="calc-note">
                 <summary>计算说明 · 本板块数据如何计算（数据源 / 口径 / 算不出来的留空）</summary>
                 <div id="calc-note-site"></div>
             </details>
@@ -103,7 +103,7 @@
                 <div class="card-header"><div class="card-title">各站点核心指标（目标 × 实际 × 进度）</div>
                     <div class="card-subtitle">超前/滞后 = 实际 − 目标×时间进度</div></div>
                 <div class="card-body"><table class="data-table">
-                    <thead><tr><th>站点</th><th>目标销售额</th><th>完成销售额</th><th>目标进度</th><th>时间进度</th><th>超前/滞后</th><th>订单数</th><th>客单价</th></tr></thead>
+                    <thead><tr><th>站点</th><th>目标销售额</th><th>完成销售额</th><th>目标进度</th><th>时间进度</th><th>超前/滞后</th><th>订单数</th><th>客单价</th><th>核对</th></tr></thead>
                     <tbody id="site-summary-table"></tbody></table></div>
             </div>
             <div class="grid-3" style="margin-top:20px;">
@@ -173,7 +173,7 @@
         <section id="page-category-all" class="page-section" style="display:none;">
             <div class="page-header"><div><h1 class="page-title">全部分类汇总</h1>
                 <p class="page-subtitle" id="category-summary-sub">类目 目标 × 实际 × 进度 × 环比 汇总（仅 飞机杯 + 增大器）</p></div></div>
-            <details class="calc-note" open>
+            <details class="calc-note">
                 <summary>计算说明 · 本板块数据如何计算（数据源 / 口径 / 算不出来的留空）</summary>
                 <div id="calc-note-category"></div>
             </details>
@@ -233,7 +233,7 @@
             <div class="page-header"><div><h1 class="page-title">全部商品</h1>
                 <p class="page-subtitle">按店铺 / 商品结构层查看定位销售额与目标完成（仅 飞机杯 + 增大器）；单品可点开深度</p></div>
                 <div class="page-actions"><button class="btn btn-secondary" onclick="switchPage('product','focus')">重点单品监控</button></div></div>
-            <details class="calc-note" open>
+            <details class="calc-note">
                 <summary>计算说明 · 本板块数据如何计算（数据源 / 口径 / 算不出来的留空）</summary>
                 <div id="calc-note-product"></div>
             </details>
@@ -256,7 +256,7 @@
             <div class="card" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">结构层四维指标明细</div><div class="card-subtitle">销售额 / 单量 / SKU数量 / 均价</div></div>
                 <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
-                    <thead><tr><th>结构层</th><th class="num">销售额</th><th class="num">单量</th><th class="num">SKU数量</th><th class="num">均价</th><th class="num">目标销售额</th><th class="num">目标单量</th></tr></thead>
+                    <thead><tr><th>结构层</th><th class="num">销售额</th><th class="num">单量</th><th class="num">SKU数量</th><th class="num">均价</th><th class="num">目标销售额</th><th class="num">目标单量</th><th>核对</th></tr></thead>
                     <tbody id="product-dimension-body"></tbody></table></div></div>
             </div>
             <div class="card" style="margin-top:20px;">

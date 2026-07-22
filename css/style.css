@@ -591,11 +591,49 @@ body::after {
 }
 
 /* ===== OGSM 复盘表 ===== */
-.ogsm-table { min-width: 1500px; table-layout: auto; }   /* 强制最小宽度，左右可横向滚动，避免列被压歪 */
-.ogsm-table th {
-    background: rgba(255, 255, 255, 0.03);
-    white-space: nowrap;
+/* OGSM 真实数据 → 卡片式布局（每行一张卡，避免 12 列表被压歪） */
+.ogsm-cards { display: flex; flex-direction: column; gap: 14px; }
+.ogsm-card {
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid var(--radium-border);
+    border-radius: 12px;
+    overflow: hidden;
 }
+.ogsm-card-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    background: linear-gradient(90deg, rgba(99,102,241,.12), rgba(34,211,238,.06));
+    border-bottom: 1px solid var(--radium-border);
+    gap: 12px;
+}
+.ogsm-card-title { font-size: 14px; font-weight: 600; color: var(--radium-text-strong); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ogsm-card-purpose { font-size: 12.5px; font-weight: 400; color: var(--radium-text-muted); }
+.ogsm-card-status { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.ogsm-prog { font-size: 13px; color: var(--radium-text-strong); }
+.ogsm-card-body { padding: 8px 16px 4px; display: grid; grid-template-columns: 1fr; gap: 6px; }
+.ogsm-card-row { display: grid; grid-template-columns: 80px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px dashed rgba(255,255,255,.04); align-items: start; }
+.ogsm-card-row:last-child { border-bottom: none; }
+.ogsm-label { font-size: 12px; color: var(--radium-text-muted); font-weight: 500; padding-top: 2px; }
+.ogsm-val { font-size: 13px; color: var(--radium-text-primary); line-height: 1.6; word-break: break-word; white-space: pre-wrap; }
+.ogc-check .ogsm-val { max-height: 120px; overflow-y: auto; background: rgba(0,0,0,.15); padding: 8px 10px; border-radius: 8px; font-size: 12px; }
+.ogsm-card-foot { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px; background: rgba(0,0,0,.15); border-top: 1px solid var(--radium-border); }
+.ogsm-chip { font-size: 11.5px; padding: 3px 10px; background: rgba(99,102,241,.14); color: #a5b4fc; border: 1px solid rgba(99,102,241,.3); border-radius: 6px; }
+.ogc-next { background: rgba(34,211,238,.12); color: #22d3ee; border-color: rgba(34,211,238,.3); flex: 1; min-width: 200px; }
+
+/* 生成周复盘（ogsms-gen）：可编辑表格也改用卡片堆叠，每行一张 */
+.ogsm-week-card {
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid var(--radium-border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+.ogsm-week-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.ogsm-week-head .ogsm-chip { font-size: 12px; padding: 3px 8px; }
+.ogsm-week-field { margin: 6px 0; }
+.ogsm-week-field label { display: block; font-size: 12px; color: var(--radium-text-muted); margin-bottom: 4px; }
+.ogsm-week-field textarea { width: 100%; box-sizing: border-box; background: rgba(0,0,0,.25); border: 1px solid var(--radium-border); color: var(--radium-text-primary); border-radius: 8px; padding: 8px 10px; font-size: 13px; line-height: 1.5; resize: vertical; }
+.ogsm-week-field textarea:focus { outline: none; border-color: var(--radium-accent-cyan); }
 .tag-gray { background: rgba(148,163,184,.16); color: #94a3b8; border: 1px solid rgba(148,163,184,.3); }
 
 /* 计算说明面板（站点/类目/商品 板块内联） */
@@ -610,25 +648,8 @@ body::after {
 .calc-table th, .calc-table td { padding: 7px 10px; vertical-align: top; }
 .calc-table td { line-height: 1.5; }
 .calc-note-tip { font-size: 11.5px; color: #94a3b8; margin: 10px 0 2px; line-height: 1.6; }
-.ogsm-table td {
-    vertical-align: top;
-    font-size: 13px;
-    line-height: 1.5;
-}
-.ogsm-table td textarea {
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--radium-border);
-    color: var(--radium-text-primary);
-    font-size: 13px;
-    line-height: 1.5;
-    padding: 8px;
-    border-radius: 8px;
-    resize: vertical;
-}
-.ogsm-table td textarea:focus {
-    outline: none;
-    border-color: var(--radium-accent-cyan);
-}
+/* 兼容：旧的 .ogsm-table 类不再使用，但保留 td 样式以防遗留 */
+.ogsm-table { display: none; }
 
 /* ===== 标签 ===== */
 .tag {
@@ -1069,3 +1090,40 @@ input[type="checkbox"] {
 .vb-pass { color: #052e16; background: #22c55e; }
 .vb-fail { color: #fff; background: #ef4444; }
 .sidebar-footer-tip { font-size: 11px; color: #64748b; text-align: center; margin-top: 6px; line-height: 1.5; }
+
+/* ===== 数据核对弹窗 ===== */
+.verify-modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65);
+    z-index: 10000; display: none; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+}
+.verify-modal-backdrop.open { display: flex; }
+.verify-modal {
+    background: #0f172a; border: 1px solid rgba(99,102,241,.4); border-radius: 14px;
+    width: min(640px, 92vw); max-height: 86vh; display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,.6);
+}
+.verify-modal-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--radium-border); background: linear-gradient(90deg, rgba(99,102,241,.16), rgba(34,211,238,.08)); }
+.verify-modal-title { font-size: 15px; font-weight: 600; color: var(--radium-text-strong); }
+.verify-modal-close { background: transparent; border: 0; color: var(--radium-text-muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 0 6px; }
+.verify-modal-close:hover { color: #fff; }
+.verify-modal-body { padding: 16px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+.vm-step { display: grid; grid-template-columns: 110px 1fr; gap: 10px; padding: 8px 10px; background: rgba(255,255,255,.02); border-radius: 8px; }
+.vm-label { font-size: 12px; color: var(--radium-text-muted); font-weight: 500; padding-top: 1px; }
+.vm-value { font-size: 13px; color: var(--radium-text-primary); line-height: 1.6; word-break: break-word; }
+.vm-result { font-weight: 600; }
+.vm-result.vm-green { background: rgba(34,197,94,.12); border: 1px solid rgba(34,197,94,.3); }
+.vm-result.vm-green .vm-value { color: #4ade80; }
+.vm-result.vm-cyan { background: rgba(34,211,238,.12); border: 1px solid rgba(34,211,238,.3); }
+.vm-result.vm-cyan .vm-value { color: #22d3ee; }
+.vm-result.vm-yellow { background: rgba(250,204,21,.12); border: 1px solid rgba(250,204,21,.3); }
+.vm-result.vm-yellow .vm-value { color: #fbbf24; }
+.vm-result.vm-red { background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.3); }
+.vm-result.vm-red .vm-value { color: #f87171; }
+.vm-result.vm-gray { background: rgba(148,163,184,.12); border: 1px solid rgba(148,163,184,.3); }
+.vm-result.vm-gray .vm-value { color: #94a3b8; }
+
+/* ===== 数据核对按钮（统一风格，小巧不抢眼） ===== */
+.btn-verify { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 9px; background: rgba(99,102,241,.14); color: #a5b4fc; border: 1px solid rgba(99,102,241,.32); border-radius: 6px; cursor: pointer; font-weight: 500; transition: all .15s; }
+.btn-verify:hover { background: rgba(99,102,241,.28); color: #c7d2fe; border-color: rgba(99,102,241,.55); }
+.btn-verify:active { transform: scale(.97); }

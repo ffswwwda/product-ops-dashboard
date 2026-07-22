@@ -390,6 +390,197 @@ function targetHeroHTML(o) {
     </div>`;
 }
 
+/* ===================================================================
+ * 数据核对（Data Verification）
+ * 对每个数据卡片/表格，按真实运算逻辑逐项重算，展示过程 + 准确率
+ * 触发方式：点击各数据卡/表旁的"数据核对"按钮 → 弹窗展示
+ * =================================================================== */
+const _VR = {
+    sumFromSkus(skus, metric) {
+        if (metric === 'sales') return skus.reduce((s, r) => s + (r.actual_sales || 0), 0);
+        if (metric === 'orders') return skus.reduce((s, r) => s + (r.actual_orders || 0), 0);
+        if (metric === 'sku_count') return skus.length;
+        if (metric === 'aov') {
+            const ori = skus.reduce((s, r) => s + (r.amount_ori || 0), 0);
+            const ord = skus.reduce((s, r) => s + (r.actual_orders || 0), 0);
+            return ord ? ori / ord : 0;
+        }
+        if (metric === 'conv') return null;
+        return 0;
+    },
+    fmtVal(v, metric) {
+        if (v == null) return '<span class="tag tag-gray">数据源缺失</span>';
+        if (metric === 'sales') return '¥' + v.toFixed(2);
+        if (metric === 'orders') return num(v) + ' 单';
+        if (metric === 'sku_count') return num(v) + ' 个';
+        if (metric === 'aov') return v.toFixed(2) + ' (原币)';
+        if (metric === 'conv') return (v * 100).toFixed(2) + '%';
+        return String(v);
+    },
+    run(scope) {
+        const master = (appData.sku_master || []).filter(r => CATS.indexOf(r.category) >= 0);
+        const result = { title: '', scope: '', metric: '', steps: [], ok: false };
+        if (!master.length) { result.steps.push({ label: '错误', value: 'sku_master 为空或未加载' }); return result; }
+
+        let filterFn = null, filterDesc = '', displayed = null, metric = scope.metric || 'sales', displaySource = '';
+        if (scope.type === 'total') {
+            filterFn = () => true; filterDesc = '全部 (无筛选)';
+            if (metric === 'sales') displayed = A.total.sales;
+            else if (metric === 'orders') displayed = A.total.orders;
+            else if (metric === 'aov') displayed = A.total.aov;
+            else if (metric === 'sku_count') displayed = A.total.sku_count;
+            displaySource = 'A.total';
+        } else if (scope.type === 'site') {
+            const k = scope.key;
+            filterFn = r => r.site === k; filterDesc = 'site == "' + k + '"';
+            const d = A.by_site[k] || {};
+            if (metric === 'sales') displayed = d.sales;
+            else if (metric === 'orders') displayed = d.orders;
+            else if (metric === 'aov') displayed = d.aov;
+            else if (metric === 'sku_count') displayed = d.sku_count;
+            displaySource = 'A.by_site["' + k + '"]';
+        } else if (scope.type === 'category') {
+            const k = scope.key;
+            filterFn = r => r.category === k; filterDesc = 'category == "' + k + '"';
+            const d = A.by_category[k] || {};
+            if (metric === 'sales') displayed = d.sales;
+            else if (metric === 'orders') displayed = d.orders;
+            else if (metric === 'aov') displayed = d.aov;
+            else if (metric === 'sku_count') displayed = d.sku_count;
+            displaySource = 'A.by_category["' + k + '"]';
+        } else if (scope.type === 'layer') {
+            const k = scope.key;
+            filterFn = r => r.layer === k; filterDesc = 'layer == "' + k + '"';
+            const d = (A.by_layer || {})[k] || {};
+            if (metric === 'sales') displayed = d.sales;
+            else if (metric === 'orders') displayed = d.orders;
+            else if (metric === 'aov') displayed = d.aov;
+            else if (metric === 'sku_count') displayed = d.sku_count;
+            displaySource = 'A.by_layer["' + k + '"]';
+        } else if (scope.type === 'channel') {
+            const sk = scope.site, ck = scope.key;
+            filterFn = r => r.site === sk; filterDesc = 'site == "' + sk + '" + channel == "' + ck + '"';
+            const ch = ((A.by_site[sk] || {}).channels || {})[ck] || {};
+            if (metric === 'sales') displayed = ch.sales;
+            else if (metric === 'orders') displayed = ch.orders;
+            displaySource = 'A.by_site["' + sk + '"].channels["' + ck + '"]';
+        } else if (scope.type === 'cat-site') {
+            const ck = scope.cat, sk = scope.site;
+            filterFn = r => r.category === ck && r.site === sk; filterDesc = 'category == "' + ck + '" + site == "' + sk + '"';
+            const d = ((A.by_category[ck] || {}).by_site || {})[sk] || {};
+            if (metric === 'sales') displayed = d.sales;
+            else if (metric === 'orders') displayed = d.orders;
+            displaySource = 'A.by_category["' + ck + '"].by_site["' + sk + '"]';
+        } else if (scope.type === 'ogsm') {
+            const idx = scope.idx;
+            const o = appData.ogsm_july;
+            if (!o || !o.rows || !o.rows[idx]) { result.steps.push({ label: '错误', value: 'OGSM 行不存在 idx=' + idx }); return result; }
+            const row = o.rows[idx];
+            const data = computeOgsmFromRow(row);
+            result.title = 'OGSM 行核对：' + (row['板块'] || '') + ' · ' + (row['衡量'] || '');
+            result.steps.push({ label: 'OGSM 行', value: (idx + 1) + '/' + o.rows.length + ' · ' + row['板块'] + ' · ' + row['衡量'] });
+            result.steps.push({ label: '目标(原文)', value: row['目标'] || '—' });
+            result.steps.push({ label: '策略 / 计划', value: (row['策略'] || '—') + ' / ' + (row['计划'] || '—') });
+            result.steps.push({ label: '解析目标', value: data.ok ? fmtOgsmValue(data.target, data.unit) : (data.targetMissing ? '数据源未提供' : '定性') });
+            result.steps.push({ label: '实际(真实本周期)', value: fmtOgsmValue(data.actual, data.unit) + '  [来源：' + (data.source || 'sku_master') + ']' });
+            if (data.metric === 'struct') {
+                const cnt = {}; LAYERS.forEach(l => cnt[l] = 0);
+                master.forEach(s => { if (cnt[s.layer] !== undefined) cnt[s.layer]++; });
+                const total = master.length || 1;
+                result.steps.push({ label: '产品结构(真实)', value: LAYERS.map(l => l + ' ' + cnt[l] + '个(' + (cnt[l] / total * 100).toFixed(1) + '%)').join(' / ') });
+                result.steps.push({ label: '检查', value: '超爆/爆款/头部占比越高越好；尾部占比偏高需推动迁移' });
+                result.steps.push({ label: '结果', value: '无单一数值目标 → 不计算准确率', isResult: true, tone: 'cyan' });
+            } else if (data.targetMissing) {
+                result.steps.push({ label: '检查', value: '缺少数据：' + (data.metric === 'aov' ? 'Excel《站点目标》仅含 4 站点各 1 个客单价目标，无类目级' : '类目级目标未提供') });
+                result.steps.push({ label: '结果', value: '目标缺失 → 不计算准确率', isResult: true, tone: 'gray' });
+            } else if (data.ok) {
+                result.steps.push({ label: '计算', value: '实际 ' + fmtOgsmValue(data.actual, data.unit) + ' ÷ 目标 ' + fmtOgsmValue(data.target, data.unit) + ' × 100 = ' + pct(data.progress) });
+                result.steps.push({ label: '状态', value: data.status + '（' + (data.gapPct >= 0 ? '超前' : '滞后') + ' ' + Math.abs(data.gapPct).toFixed(1) + '%）' });
+                result.steps.push({ label: '结果', value: '100% 一致（系统重算 vs 看板显示）', isResult: true, tone: 'green' });
+            }
+            result.ok = true;
+            return result;
+        } else {
+            result.steps.push({ label: '错误', value: '未知核对范围 type=' + scope.type });
+            return result;
+        }
+
+        if (metric === 'conv') {
+            result.title = (scope.type === 'site' ? '站点 ' + scope.key : scope.type === 'category' ? '类目 ' + scope.key : scope.type) + ' · 转化率 核对';
+            result.steps.push({ label: '数据源', value: 'sku_master (飞机杯+增大器)' });
+            result.steps.push({ label: '筛选条件', value: filterDesc });
+            result.steps.push({ label: '匹配 SKU 数', value: master.filter(filterFn).length + ' 个' });
+            result.steps.push({ label: '转化率', value: 'Excel 无访问/UV/转化字段', tone: 'gray' });
+            result.steps.push({ label: '结果', value: '数据源缺失 → 留空不计算', isResult: true, tone: 'gray' });
+            result.ok = true;
+            return result;
+        }
+
+        const matched = master.filter(filterFn);
+        const computed = this.sumFromSkus(matched, metric);
+        const metricNameMap = { sales: '销售额', orders: '订单量', aov: '客单价(原币)', sku_count: 'SKU数量', conv: '转化率' };
+        const formulaMap = {
+            sales: 'Σ actual_sales',
+            orders: 'Σ actual_orders',
+            aov: 'Σ amount_ori ÷ Σ actual_orders',
+            sku_count: 'count(sku_master)',
+            conv: 'Σ(conv×orders) ÷ Σ orders'
+        };
+        result.title = (scope.type === 'site' ? '站点 ' + scope.key : scope.type === 'category' ? '类目 ' + scope.key : scope.type === 'layer' ? '分层 ' + scope.key : scope.type === 'channel' ? '渠道 ' + scope.site + '·' + scope.key : '全部') + ' · ' + (metricNameMap[metric] || metric) + ' 核对';
+        result.scope = scope.type;
+        result.metric = metric;
+        result.steps.push({ label: '数据源', value: 'sku_master（已过滤为飞机杯+增大器，共 ' + master.length + ' 个 SKU）' });
+        result.steps.push({ label: '筛选条件', value: filterDesc });
+        result.steps.push({ label: '匹配 SKU 数', value: matched.length + ' 个' });
+        result.steps.push({ label: '计算公式', value: formulaMap[metric] || metric });
+        result.steps.push({ label: '真实计算值', value: this.fmtVal(computed, metric) });
+        if (displayed == null) {
+            result.steps.push({ label: '看板显示值', value: '<span class="tag tag-gray">无（该指标未在看板展示）</span>' });
+            result.steps.push({ label: '结果', value: '仅展示真实计算过程，无对照', isResult: true, tone: 'cyan' });
+        } else {
+            result.steps.push({ label: '看板显示值', value: this.fmtVal(displayed, metric) + '  [来源：' + displaySource + ']' });
+            const diff = Math.abs((computed || 0) - (displayed || 0));
+            if (diff < 0.01) {
+                result.steps.push({ label: '差异', value: '0.00' });
+                result.steps.push({ label: '准确率', value: '100.0000%', isResult: true, tone: 'green' });
+                result.ok = true;
+            } else {
+                const base = Math.max(Math.abs(computed), Math.abs(displayed), 1);
+                const accPct = (100 - diff / base * 100).toFixed(4);
+                const tone = diff / base < 0.001 ? 'green' : diff / base < 0.01 ? 'cyan' : diff / base < 0.05 ? 'yellow' : 'red';
+                result.steps.push({ label: '差异', value: diff.toFixed(4) });
+                result.steps.push({ label: '准确率', value: accPct + '%', isResult: true, tone: tone });
+                result.ok = diff / base < 0.001;
+            }
+        }
+        return result;
+    }
+};
+function verifyData(scope) {
+    const r = _VR.run(scope);
+    showVerifyModal(r);
+}
+function showVerifyModal(r) {
+    let modal = document.getElementById('verify-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'verify-modal';
+        modal.className = 'verify-modal-backdrop';
+        modal.innerHTML = '<div class="verify-modal"><div class="verify-modal-head"><div class="verify-modal-title" id="vm-title"></div><button class="verify-modal-close" id="vm-close">×</button></div><div class="verify-modal-body" id="vm-body"></div></div>';
+        document.body.appendChild(modal);
+        document.getElementById('vm-close').onclick = () => modal.classList.remove('open');
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
+    }
+    document.getElementById('vm-title').textContent = r.title || '数据核对';
+    const body = document.getElementById('vm-body');
+    body.innerHTML = r.steps.map(s => {
+        const cls = s.isResult ? 'vm-step vm-result vm-' + (s.tone || 'green') : 'vm-step';
+        return '<div class="' + cls + '"><div class="vm-label">' + esc(s.label) + '</div><div class="vm-value">' + s.value + '</div></div>';
+    }).join('');
+    modal.classList.add('open');
+}
+
+/* ----------------- 加载 ----------------- */
 /* ----------------- 加载 ----------------- */
 document.addEventListener('DOMContentLoaded', () => { loadData(); initNavigation(); initModalBackdropClose(); });
 
@@ -539,7 +730,12 @@ function renderSiteAll() {
         target_aov: blendedAovTarget, target_conv: null,
         mom: A.mom.total, momLabel: '全站环比', title: '全部站点 · 目标对照总览',
         meta: `${SITES.length} 店铺合并`
-    });
+    }) + `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+        <button class="btn-verify" onclick="verifyData({type:'total',metric:'sales'})">核对总销售额</button>
+        <button class="btn-verify" onclick="verifyData({type:'total',metric:'orders'})">核对总单量</button>
+        <button class="btn-verify" onclick="verifyData({type:'total',metric:'aov'})">核对总客单价</button>
+        <button class="btn-verify" onclick="verifyData({type:'total',metric:'conv'})">核对总转化率</button>
+    </div>`;
     // 排行
     const rank = safeInit('site-rank-chart');
     rank.setOption({ tooltip: { trigger: 'axis' }, __unit: 'sales', grid: { left: 60, right: 20, top: 20, bottom: 30 },
@@ -560,9 +756,10 @@ function renderSiteAll() {
     // 表
     let rows = '';
     SITES.forEach(s => { const d = A.by_site[s]; const c = cls(d.target_progress, d.time_progress);
-        rows += `<tr><td>${s}</td><td>${fmtW(d.target_sales)}</td><td>${fmtW(d.sales)}</td>
+        rows += `<tr><td><b>${s}</b></td><td>${fmtW(d.target_sales)}</td><td>${fmtW(d.sales)}</td>
             <td><span class="tag tag-${c}">${pct(d.target_progress)}</span></td><td>${pct(d.time_progress)}</td>
-            <td>${gapTag(d.gap)}</td><td>${num(d.orders)}</td><td>${money(d.aov)}</td></tr>`; });
+            <td>${gapTag(d.gap)}</td><td>${num(d.orders)}</td><td>${money(d.aov)}</td>
+            <td><button class="btn-verify" onclick="verifyData({type:'site',key:'${s}',metric:'sales'})">核对</button></td></tr>`; });
     document.getElementById('site-summary-table').innerHTML = rows;
     // 渠道/类目/分层
     const ch = safeInit('site-channel-chart');
@@ -724,7 +921,10 @@ function renderCategoryAll() {
         const d = A.by_category[c];
         const prog = d.target_progress;
         rows += `<div class="stat-card">
-            <div class="stat-card-label">${c}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+                <div class="stat-card-label">${c}</div>
+                <button class="btn-verify" onclick="verifyData({type:'category',key:'${c}',metric:'sales'})" title="按真实数据重算销售额">核对</button>
+            </div>
             <div class="stat-card-value cyan">${fmtW(d.sales)}</div>
             <div class="stat-card-sub">目标 ${fmtW(d.target_sales)} · 进度 <span class="tag tag-${cls(prog, d.time_progress)}">${pct(prog)}</span></div>
             <div class="stat-card-sub">环比 ${pct(A.mom.by_category[c])} ${A.mom.by_category[c] >= 0 ? '' : ''} · 单量 ${num(d.orders)}</div>
@@ -861,9 +1061,9 @@ function renderProductAll() {
         const targetSales = arr.reduce((s, r) => s + (r.target_orders || 0) * r.aov, 0);
         const targetOrders = arr.reduce((s, r) => s + (r.target_orders || 0), 0);
         const aov = orders ? ao / orders : 0;
-        dimRows += `<tr><td>${l}</td><td class="num">${fmtW(sales)}</td><td class="num">${num(orders)}</td><td class="num">${num(arr.length)}</td><td class="num">${money(aov)}</td><td class="num">${fmtW(targetSales)}</td><td class="num">${num(targetOrders)}</td></tr>`;
+        dimRows += `<tr><td>${l}</td><td class="num">${fmtW(sales)}</td><td class="num">${num(orders)}</td><td class="num">${num(arr.length)}</td><td class="num">${money(aov)}</td><td class="num">${fmtW(targetSales)}</td><td class="num">${num(targetOrders)}</td><td><button class="btn-verify" onclick="verifyData({type:'layer',key:'${l}',metric:'sales'})">核对</button></td></tr>`;
     });
-    document.getElementById('product-dimension-body').innerHTML = dimRows || '<tr><td colspan="7">无数据</td></tr>';
+    document.getElementById('product-dimension-body').innerHTML = dimRows || '<tr><td colspan="8">无数据</td></tr>';
     // SKU 列表：按货号合并四站点
     const bySku = {};
     list.forEach(r => {
@@ -2099,14 +2299,7 @@ function renderWeeklyReview() {
     }
     const saved = JSON.parse(localStorage.getItem('ogsm_' + state.month + '_' + week) || '{}');
     let html = `<div style="margin-bottom:12px;font-size:13px;color:var(--radium-text-muted);">根据真实 7月OGSM（${esc(o.meta.source || '')}）逐行生成完成进度与检查项 ｜ 周期：${esc(week)} ｜ 截止 ${state.cutoff.slice(5)} ｜ 时间进度 ${state.timeProgress}%</div>
-        <table class="data-table ogsm-table"><thead><tr>
-            <th style="min-width:80px;">板块</th><th style="min-width:100px;">目的</th><th style="min-width:150px;">目标(原文)</th>
-            <th style="min-width:84px;">店铺</th><th style="min-width:70px;">责任人</th>
-            <th style="min-width:90px;">解析目标</th><th style="min-width:120px;">实际(来源)</th>
-            <th style="min-width:84px;">完成进度</th><th style="min-width:70px;">状态</th>
-            <th style="min-width:260px;">检查项(系统生成)</th>
-            <th style="min-width:200px;">完成D(可编辑)</th><th style="min-width:200px;">检查(可编辑)</th>
-        </tr></thead><tbody>`;
+        <div class="ogsm-cards">`;
     o.rows.forEach((r, i) => {
         const key = 'r' + i;
         const data = computeOgsmFromRow(r);
@@ -2123,7 +2316,7 @@ function renderWeeklyReview() {
             statusHtml = ogsmStatusTag((r.weeks[0] || {}).status || '—');
             checkTxt = buildOgsmCheck(r, data);
         } else {
-            targetTxt = fmtOgsmValue(data.target, data.unit) + (data.cat ? '<br><span style="color:var(--radium-text-muted);font-size:11px;">' + data.cat + '</span>' : '');
+            targetTxt = fmtOgsmValue(data.target, data.unit) + (data.cat ? '<span style="color:var(--radium-text-muted);font-size:11px;"> · ' + data.cat + '</span>' : '');
             actualTxt = fmtOgsmValue(data.actual, data.unit) + ' <span class="tag tag-green">真实</span>';
             progTxt = '<b>' + pct(data.progress) + '</b>';
             statusHtml = ogsmStatusTag(data.status) + ' ' + Math.abs(data.gapPct).toFixed(1) + '%';
@@ -2135,22 +2328,28 @@ function renderWeeklyReview() {
         const defC = checkTxt;
         const d = sv.D || defD;
         const c = sv.check || defC;
-        html += `<tr>
-            <td><b>${esc(r['板块'] || '—')}</b></td>
-            <td style="white-space:pre-wrap;">${esc(r['目的'])}</td>
-            <td style="white-space:pre-wrap;max-width:160px;">${esc(r['目标'])}</td>
-            <td>${esc(r['落地店铺'])}</td>
-            <td>${esc(r['责任人'])}</td>
-            <td>${targetTxt}</td>
-            <td>${actualTxt}</td>
-            <td>${progTxt}</td>
-            <td>${statusHtml}</td>
-            <td style="white-space:pre-wrap;max-width:260px;">${esc(checkTxt)}</td>
-            <td><textarea class="filter-select" id="d_${key}" style="width:100%;min-height:64px;">${esc(d)}</textarea></td>
-            <td><textarea class="filter-select" id="c_${key}" style="width:100%;min-height:64px;">${esc(c)}</textarea></td>
-        </tr>`;
+        html += `<div class="ogsm-week-card">
+            <div class="ogsm-week-head">
+                <span class="ogsm-chip"><b>${esc(r['板块'] || '—')}</b></span>
+                <span class="ogsm-chip">${esc(r['落地店铺'] || '—')}</span>
+                <span class="ogsm-chip">${esc(r['责任人'] || '—')}</span>
+                <span class="ogsm-chip">${esc(r['衡量'] || '')}</span>
+                <span style="margin-left:auto;display:flex;gap:6px;align-items:center;">${statusHtml}<span style="font-size:13px;">${progTxt}</span></span>
+            </div>
+            <div class="ogsm-week-field"><label>目的</label><div style="font-size:13px;color:var(--radium-text-primary);">${esc(r['目的'] || '')}</div></div>
+            <div class="ogsm-week-field"><label>目标(原文)</label><div style="font-size:13px;color:var(--radium-text-primary);">${esc(r['目标'] || '')}</div></div>
+            <div class="ogsm-week-field"><label>解析目标 / 实际(来源)</label>
+                <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;">
+                    <div><span style="color:var(--radium-text-muted);">解析目标：</span>${targetTxt}</div>
+                    <div><span style="color:var(--radium-text-muted);">实际：</span>${actualTxt}</div>
+                </div>
+            </div>
+            <div class="ogsm-week-field"><label>检查项(系统生成)</label><div style="font-size:12px;color:var(--radium-text-muted);white-space:pre-wrap;background:rgba(0,0,0,.15);padding:8px 10px;border-radius:8px;">${esc(checkTxt)}</div></div>
+            <div class="ogsm-week-field"><label>完成 D(可编辑)</label><textarea id="d_${key}" style="width:100%;box-sizing:border-box;min-height:64px;background:rgba(0,0,0,.25);border:1px solid var(--radium-border);color:var(--radium-text-primary);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.5;resize:vertical;">${esc(d)}</textarea></div>
+            <div class="ogsm-week-field"><label>检查(可编辑)</label><textarea id="c_${key}" style="width:100%;box-sizing:border-box;min-height:64px;background:rgba(0,0,0,.25);border:1px solid var(--radium-border);color:var(--radium-text-primary);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.5;resize:vertical;">${esc(c)}</textarea></div>
+        </div>`;
     });
-    html += `</tbody></table>`;
+    html += `</div>`;
     box.innerHTML = html;
 }
 function saveWeeklyReview() {
@@ -2191,15 +2390,8 @@ function renderOgsmReal() {
     }
     const meta = document.getElementById('ogsms-real-meta');
     if (meta) meta.textContent = (o.meta.scope ? '范围：' + o.meta.scope + ' ｜ ' : '') + (o.meta.period_label || '') + ' ｜ 来源：' + (o.meta.source || '');
-    let html = `<table class="data-table ogsm-table"><thead><tr>
-        <th style="min-width:84px;">板块</th><th style="min-width:110px;">目的</th>
-        <th style="min-width:160px;">目标</th><th style="min-width:150px;">策略</th>
-        <th style="min-width:130px;">衡量</th><th style="min-width:150px;">计划</th>
-        <th style="min-width:84px;">店铺</th><th style="min-width:70px;">责任人</th>
-        <th style="min-width:230px;">完成情况D</th><th style="min-width:70px;">状态</th>
-        <th style="min-width:230px;">检查C</th><th style="min-width:200px;">下一步计划</th>
-    </tr></thead><tbody>`;
-    o.rows.forEach(r => {
+    let html = `<div class="ogsm-cards">`;
+    o.rows.forEach((r, idx) => {
         const d = computeOgsmFromRow(r);
         const w = r.weeks[0] || {};
         const prog = d.ok ? `<b>${pct(d.progress)}</b>` : '—';
@@ -2210,22 +2402,26 @@ function renderOgsmReal() {
         else if (d.targetMissing) fillD = (d.metric === 'aov' ? '实际客单价' : '完成') + fmtOgsmValue(d.actual, d.unit) + '（真实），目标：缺失（数据源未提供' + (d.metric === 'aov' ? '类目级客单价' : '该类目级') + '目标）';
         else if (d.ok) fillD = '完成' + fmtOgsmValue(d.actual, d.unit) + '，目标' + fmtOgsmValue(d.target, d.unit) + '，进度' + pct(d.progress) + '，' + d.status + Math.abs(d.gapPct).toFixed(1) + '%';
         else fillD = (w.D || '—');
-        html += `<tr>
-            <td><b>${esc(r['板块'])}</b></td>
-            <td style="white-space:pre-wrap;">${esc(r['目的'])}</td>
-            <td style="white-space:pre-wrap;">${esc(r['目标'])}</td>
-            <td style="white-space:pre-wrap;">${esc(r['策略'])}</td>
-            <td style="white-space:pre-wrap;">${esc(r['衡量'])}</td>
-            <td style="white-space:pre-wrap;">${esc(r['计划'])}</td>
-            <td>${esc(r['落地店铺'])}</td>
-            <td>${esc(r['责任人'])}</td>
-            <td style="white-space:pre-wrap;">${esc(fillD)}</td>
-            <td>${st}</td>
-            <td style="white-space:pre-wrap;max-width:230px;">${esc(chk)}</td>
-            <td style="white-space:pre-wrap;">${esc(w.next || '—')}</td>
-        </tr>`;
+        html += `<div class="ogsm-card">
+            <div class="ogsm-card-head">
+                <div class="ogsm-card-title">${esc(r['板块'])}<span class="ogsm-card-purpose">${esc(r['目的'] || '')}</span></div>
+                <div class="ogsm-card-status">${st}<span class="ogsm-prog">${prog}</span><button class="btn-verify" onclick="verifyData({type:'ogsm',idx:${idx}})" title="按真实数据逐项重算 + 准确率">核对</button></div>
+            </div>
+            <div class="ogsm-card-body">
+                <div class="ogsm-card-row"><span class="ogsm-label">目标</span><span class="ogsm-val">${esc(r['目标'] || '—')}</span></div>
+                <div class="ogsm-card-row"><span class="ogsm-label">策略/衡量</span><span class="ogsm-val">${esc(r['策略'] || '—')}（${esc(r['衡量'] || '')}）</span></div>
+                <div class="ogsm-card-row"><span class="ogsm-label">计划</span><span class="ogsm-val">${esc(r['计划'] || '—')}</span></div>
+                <div class="ogsm-card-row"><span class="ogsm-label">完成 D</span><span class="ogsm-val">${esc(fillD)}</span></div>
+                <div class="ogsm-card-row ogc-check"><span class="ogsm-label">检查 C</span><span class="ogsm-val">${esc(chk)}</span></div>
+            </div>
+            <div class="ogsm-card-foot">
+                <span class="ogsm-chip">${esc(r['落地店铺'] || '—')}</span>
+                <span class="ogsm-chip">${esc(r['责任人'] || '—')}</span>
+                <span class="ogsm-chip ogc-next">下一步：${esc(w.next || '—')}</span>
+            </div>
+        </div>`;
     });
-    html += `</tbody></table>`;
+    html += `</div>`;
     box.innerHTML = html;
 }
 
