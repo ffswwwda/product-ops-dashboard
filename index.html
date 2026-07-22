@@ -92,14 +92,18 @@
                 <summary>计算说明 · 本板块数据如何计算（数据源 / 口径 / 算不出来的留空）</summary>
                 <div id="calc-note-site"></div>
             </details>
-            <div id="site-summary-cards" style="margin-top:8px;"></div>
+            <div class="card" data-verify="total" data-verify-label="全部站点·目标对照总览" style="margin-top:8px;">
+                <div class="card-header"><div class="card-title">全部站点 · 目标对照总览</div>
+                    <div class="card-subtitle">${SITES.length} 店铺合并</div></div>
+                <div class="card-body"><div id="site-summary-cards"></div></div>
+            </div>
             <div class="grid-2" style="margin-top:20px;">
-                <div class="card"><div class="card-header"><div class="card-title">站点完成销售额排行</div></div>
+                <div class="card" data-verify="site-rank" data-verify-label="站点完成销售额排行"><div class="card-header"><div class="card-title">站点完成销售额排行</div></div>
                     <div class="card-body"><div id="site-rank-chart" style="height:260px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">销售额趋势（目标 vs 实际）</div><div class="card-subtitle">各月全量 / 本月按节奏</div></div>
+                <div class="card" data-verify="site-trend" data-verify-label="销售额趋势"><div class="card-header"><div class="card-title">销售额趋势（目标 vs 实际）</div><div class="card-subtitle">各月全量 / 本月按节奏</div></div>
                     <div class="card-body"><div id="site-trend-chart" style="height:260px;"></div></div></div>
             </div>
-            <div class="card" style="margin-top:20px;">
+            <div class="card" data-verify="total" data-verify-label="各站点核心指标" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">各站点核心指标（目标 × 实际 × 进度）</div>
                     <div class="card-subtitle">超前/滞后 = 实际 − 目标×时间进度</div></div>
                 <div class="card-body"><table class="data-table">
@@ -107,9 +111,9 @@
                     <tbody id="site-summary-table"></tbody></table></div>
             </div>
             <div class="grid-3" style="margin-top:20px;">
-                <div class="card"><div class="card-header"><div class="card-title">分渠道销售额</div></div><div class="card-body"><div id="site-channel-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">分类目销售额</div></div><div class="card-body"><div id="site-category-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">商品分层销售额</div></div><div class="card-body"><div id="site-layer-chart" style="height:300px;"></div></div></div>
+                <div class="card" data-verify="site-channel-chart" data-verify-label="分渠道销售额"><div class="card-header"><div class="card-title">分渠道销售额</div></div><div class="card-body"><div id="site-channel-chart" style="height:300px;"></div></div></div>
+                <div class="card" data-verify="site-cat-chart" data-verify-label="分类目销售额"><div class="card-header"><div class="card-title">分类目销售额</div></div><div class="card-body"><div id="site-category-chart" style="height:300px;"></div></div></div>
+                <div class="card" data-verify="site-layer-chart" data-verify-label="商品分层销售额"><div class="card-header"><div class="card-title">商品分层销售额</div></div><div class="card-body"><div id="site-layer-chart" style="height:300px;"></div></div></div>
             </div>
         </section>
 
@@ -120,19 +124,21 @@
                     <p class="page-subtitle" id="shop-detail-subtitle">店铺维度 · 总销售/目标/进度 + 分渠道/类目/分层（单量）+ 分层/单品可下钻</p></div>
                 <div class="page-actions"><button class="btn btn-secondary" onclick="switchPage('site','all')">← 返回全部站点</button></div>
             </div>
-            <div id="shop-detail-cards" style="margin-top:8px;"></div>
-            <div class="grid-3" style="margin-top:20px;">
-                <div class="card"><div class="card-header"><div class="card-title">分渠道（销售额 / 单量）</div></div><div class="card-body"><div id="shop-channel-chart" style="height:280px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">分类目（销售 / 单量）</div></div><div class="card-body"><div id="shop-category-chart" style="height:280px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">商品分层（销售 / 单量）</div><div class="card-subtitle">点击分层查看该层单品</div></div><div class="card-body"><div id="shop-layer-chart" style="height:280px;"></div></div></div>
+            <div class="card" data-verify="site:AC美" data-verify-label="AC美·目标对照总览" style="margin-top:8px;">
+                <div class="card-body" style="padding-top:0;"><div id="shop-detail-cards"></div></div>
             </div>
-            <div class="card" style="margin-top:20px;">
+            <div class="grid-3" style="margin-top:20px;">
+                <div class="card" data-verify="shop-channel-chart:AC美" data-verify-label="AC美·分渠道"><div class="card-header"><div class="card-title">分渠道（销售额 / 单量）</div></div><div class="card-body"><div id="shop-channel-chart" style="height:280px;"></div></div></div>
+                <div class="card" data-verify="shop-cat-chart:AC美" data-verify-label="AC美·分类目"><div class="card-header"><div class="card-title">分类目（销售 / 单量）</div></div><div class="card-body"><div id="shop-category-chart" style="height:280px;"></div></div></div>
+                <div class="card" data-verify="shop-layer-chart:AC美" data-verify-label="AC美·商品分层"><div class="card-header"><div class="card-title">商品分层（销售 / 单量）</div><div class="card-subtitle">点击分层查看该层单品</div></div><div class="card-body"><div id="shop-layer-chart" style="height:280px;"></div></div></div>
+            </div>
+            <div class="card" data-verify="site-breakdown" data-verify-label="渠道/类目/分层 明细" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">渠道 / 类目 / 分层 明细（销售额 + 单量 + SKU数量 + 客单价 + 转化率）</div></div>
                 <div class="card-body"><table class="data-table">
                     <thead><tr><th>维度</th><th>细分</th><th class="num">销售额</th><th class="num">销售额占比</th><th class="num">单量</th><th class="num">单量占比</th><th class="num">SKU数量</th><th class="num">均价</th><th class="num">转化率</th></tr></thead>
                     <tbody id="shop-breakdown-table"></tbody></table></div>
             </div>
-                <div class="card" style="margin-top:20px;">
+                <div class="card" data-verify="layer:超爆" data-verify-label="分层下钻·单品列表" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">分层下钻 · 单品列表（点击单品看本周期深度）</div>
                     <div class="card-subtitle" id="shop-layer-hint">选择上方分层图查看该层单品</div></div>
                 <div class="card-body"><table class="data-table">
@@ -181,8 +187,10 @@
                 <div class="filter-group"><span class="filter-label">店铺</span>
                     <select class="filter-select" id="category-shop"><option>全部店铺</option><option>AC美</option><option>BV美</option><option>UK英</option><option>EU欧</option></select></div>
             </div>
-            <div class="grid-3" id="category-cards" style="margin-top:8px;"></div>
-            <div class="card" style="margin-top:20px;">
+            <div class="card" data-verify="cat-all" data-verify-label="全部分类汇总" style="margin-top:8px;">
+                <div class="card-body" style="padding-top:0;"><div class="grid-3" id="category-cards"></div></div>
+            </div>
+            <div class="card" data-verify="cat-shop-chart" data-verify-label="分店铺类目进度" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">分店铺类目进度</div><div class="card-subtitle">不同店铺下各分类目的完成销售额</div></div>
                 <div class="card-body"><div id="category-shop-chart" style="height:350px;"></div></div></div>
         </section>
@@ -201,7 +209,9 @@
                 <div class="filter-group"><span class="filter-label">商品分层</span>
                     <select class="filter-select" id="cat-detail-layer"><option>全部层级</option><option>超爆</option><option>爆款</option><option>头部</option><option>腰部</option><option>尾部</option></select></div>
             </div>
-            <div id="cat-detail-cards" style="margin-top:8px;"></div>
+            <div class="card" data-verify="cat-all:飞机杯" data-verify-label="类目·目标对照总览" style="margin-top:8px;">
+                <div class="card-body" style="padding-top:0;"><div id="cat-detail-cards"></div></div>
+            </div>
             <div class="metric-tabs" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
                 <button class="ogsm-tab" data-cat-metric="sales" onclick="switchCatMetric('sales')">销售额</button>
                 <button class="ogsm-tab active" data-cat-metric="orders" onclick="switchCatMetric('orders')">单量</button>
@@ -209,11 +219,11 @@
                 <button class="ogsm-tab" data-cat-metric="aov" onclick="switchCatMetric('aov')">均价</button>
             </div>
             <div class="grid-3" style="margin-top:12px;">
-                <div class="card"><div class="card-header"><div class="card-title" id="cat-detail-structure-title">商品结构单量分布</div></div><div class="card-body"><div id="cat-detail-structure-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title" id="cat-detail-channel-title">渠道单量分布</div></div><div class="card-body"><div id="cat-detail-channel-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title" id="cat-detail-shop-title">分店铺单量</div></div><div class="card-body"><div id="cat-detail-shop-chart" style="height:300px;"></div></div></div>
+                <div class="card" data-verify="cat-detail:AC美:飞机杯" data-verify-label="类目详情·商品结构单量"><div class="card-header"><div class="card-title" id="cat-detail-structure-title">商品结构单量分布</div></div><div class="card-body"><div id="cat-detail-structure-chart" style="height:300px;"></div></div></div>
+                <div class="card" data-verify="cat-detail:AC美:飞机杯" data-verify-label="类目详情·渠道单量"><div class="card-header"><div class="card-title" id="cat-detail-channel-title">渠道单量分布</div></div><div class="card-body"><div id="cat-detail-channel-chart" style="height:300px;"></div></div></div>
+                <div class="card" data-verify="cat-detail:AC美:飞机杯" data-verify-label="类目详情·分店铺单量"><div class="card-header"><div class="card-title" id="cat-detail-shop-title">分店铺单量</div></div><div class="card-body"><div id="cat-detail-shop-chart" style="height:300px;"></div></div></div>
             </div>
-            <div class="card" style="margin-top:20px;">
+            <div class="card" data-verify="cat-all:飞机杯" data-verify-label="类目详情·四维指标" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">四维指标明细</div><div class="card-subtitle">按当前选定维度聚合：销售额 / 单量 / SKU数量 / 均价</div></div>
                 <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
                     <thead><tr><th>维度</th><th>细分</th><th class="num">销售额</th><th class="num">单量</th><th class="num">SKU数量</th><th class="num">均价</th></tr></thead>
@@ -250,16 +260,16 @@
                 <button class="ogsm-tab" data-product-metric="aov" onclick="switchProductMetric('aov')">均价</button>
             </div>
             <div class="grid-2" style="margin-bottom:20px;margin-top:12px;">
-                <div class="chart-container"><div class="card-header"><div class="card-title" id="product-structure-title">商品结构层销售额（实际）</div></div><div id="product-structure-chart" style="height:300px;"></div></div>
-                <div class="chart-container"><div class="card-header"><div class="card-title" id="product-trend-title">结构层实际 vs 目标结构</div></div><div id="product-trend-chart" style="height:300px;"></div></div>
+                <div class="chart-container" data-verify="site-layer-chart" data-verify-label="商品结构层销售额"><div class="card-header"><div class="card-title" id="product-structure-title">商品结构层销售额（实际）</div></div><div id="product-structure-chart" style="height:300px;"></div></div>
+                <div class="chart-container" data-verify="site-layer-chart" data-verify-label="结构层实际 vs 目标结构"><div class="card-header"><div class="card-title" id="product-trend-title">结构层实际 vs 目标结构</div></div><div id="product-trend-chart" style="height:300px;"></div></div>
             </div>
-            <div class="card" style="margin-top:20px;">
+            <div class="card" data-verify="site-layer-chart" data-verify-label="结构层四维指标" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">结构层四维指标明细</div><div class="card-subtitle">销售额 / 单量 / SKU数量 / 均价</div></div>
-                <div class="card-body"><div id="product-batch-btn" style="margin-bottom:10px;"></div><div style="overflow-x:auto;"><table class="data-table">
+                <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
                     <thead><tr><th>结构层</th><th class="num">销售额</th><th class="num">单量</th><th class="num">SKU数量</th><th class="num">均价</th><th class="num">目标销售额</th><th class="num">目标单量</th><th>核对</th></tr></thead>
                     <tbody id="product-dimension-body"></tbody></table></div></div>
             </div>
-            <div class="card" style="margin-top:20px;">
+            <div class="card" data-verify="total" data-verify-label="单品列表（四站点对照）" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">单品列表（四站点同 SKU 对照）</div><div class="card-subtitle">点击站点格子弹出该站点本周期深度</div></div>
                 <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
                     <thead><tr><th>货号</th><th>类目</th><th class="num">AC美</th><th class="num">BV美</th><th class="num">UK英</th><th class="num">EU欧</th><th class="num">合计</th><th>操作</th></tr></thead>
@@ -274,12 +284,14 @@
                     <p class="page-subtitle" id="pl-subtitle">该定位商品的分布 / 转化率 / 单品下钻</p></div>
                 <div class="page-actions"><button class="btn btn-secondary" onclick="switchPage('product','all')">← 返回全部商品</button></div>
             </div>
-            <div id="pl-cards" style="margin-top:8px;"></div>
-            <div class="grid-2" style="margin-top:20px;">
-                <div class="card"><div class="card-header"><div class="card-title">该层分店铺分布（销售 / 单量）</div></div><div class="card-body"><div id="pl-shop-chart" style="height:300px;"></div></div></div>
-                <div class="card"><div class="card-header"><div class="card-title">该层分店铺转化率</div></div><div class="card-body"><div id="pl-conv-chart" style="height:300px;"></div></div></div>
+            <div class="card" data-verify="layer:超爆" data-verify-label="该结构层·总览" style="margin-top:8px;">
+                <div class="card-body" style="padding-top:0;"><div id="pl-cards"></div></div>
             </div>
-            <div class="card" style="margin-top:20px;">
+            <div class="grid-2" style="margin-top:20px;">
+                <div class="card" data-verify="site-layer-chart" data-verify-label="该层分店铺分布"><div class="card-header"><div class="card-title">该层分店铺分布（销售 / 单量）</div></div><div class="card-body"><div id="pl-shop-chart" style="height:300px;"></div></div></div>
+                <div class="card" data-verify="site-layer-chart" data-verify-label="该层分店铺转化率"><div class="card-header"><div class="card-title">该层分店铺转化率</div></div><div class="card-body"><div id="pl-conv-chart" style="height:300px;"></div></div></div>
+            </div>
+            <div class="card" data-verify="layer:超爆" data-verify-label="该层单品列表" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">该层单品列表（点击货号看本周期深度）</div></div>
                 <div class="card-body"><table class="data-table">
                     <thead><tr><th>货号</th><th>类目</th><th>站点</th><th class="num">本月目标单量</th><th class="num">实际单量</th><th class="num">进度</th><th>转化率</th><th>变化</th><th>负责人</th><th>操作</th></tr></thead>
@@ -306,9 +318,11 @@
                 <div class="filter-group"><span class="filter-label">类目</span><select class="filter-select" id="ops-category"><option>全部</option><option>飞机杯</option><option>增大器</option></select></div>
                 <span id="ops-count" style="margin-left:auto;font-size:12px;color:var(--radium-text-muted);"></span>
             </div>
-            <div class="card"><div class="card-body"><table class="data-table">
+            <div class="card" data-verify="total" data-verify-label="运营动作记录" style="margin-top:12px;">
+                <div class="card-body"><table class="data-table">
                 <thead><tr><th>时间</th><th>站点</th><th>商品</th><th>动作类型</th><th>负责人</th><th>描述</th><th>状态</th><th>效果</th></tr></thead>
-                <tbody id="ops-table-body"></tbody></table></div></div>
+                <tbody id="ops-table-body"></tbody></table></div>
+            </div>
         </section>
 
         <!-- ============ 投放动作 ============ -->
@@ -322,10 +336,15 @@
                 <div class="filter-group"><span class="filter-label">渠道</span><select class="filter-select" id="ads-channel"><option>全部</option></select></div>
                 <span id="ads-count" style="margin-left:auto;font-size:12px;color:var(--radium-text-muted);"></span>
             </div>
-            <div class="grid-4" id="ads-stat-cards" style="margin-bottom:20px;"></div>
-            <div class="card"><div class="card-body"><table class="data-table">
+            <div class="card" data-verify="total" data-verify-label="投放汇总" style="margin-bottom:20px;">
+                <div class="card-header"><div class="card-title">投放汇总</div></div>
+                <div class="card-body" style="padding-top:0;"><div class="grid-4" id="ads-stat-cards"></div></div>
+            </div>
+            <div class="card" data-verify="total" data-verify-label="投放动作记录" style="margin-top:12px;">
+                <div class="card-body"><table class="data-table">
                 <thead><tr><th>时间</th><th>站点</th><th>渠道</th><th>商品</th><th>花费</th><th>点击</th><th>转化</th><th>ROI</th></tr></thead>
-                <tbody id="ads-table-body"></tbody></table></div></div>
+                <tbody id="ads-table-body"></tbody></table></div>
+            </div>
         </section>
 
         <!-- ============ 分站点过程数据对比 ============ -->
@@ -338,7 +357,7 @@
                 <div class="filter-group"><span class="filter-label">站点</span>
                     <select class="filter-select" id="process-shop"><option value="all">全部站点</option><option value="AC美">AC美</option><option value="BV美">BV美（真实）</option><option value="UK英">UK英</option><option value="EU欧">欧洲总站</option></select></div>
             </div>
-            <div class="card" style="margin-top:12px;">
+            <div class="card" data-verify="site:AC美" data-verify-label="过程指标对比表" style="margin-top:12px;">
                 <div class="card-header"><div class="card-title">过程指标对比表</div><div class="card-subtitle">BV美为真实本/上周期CSV；其余站点为示例数据，待上传真实周期CSV后替换</div></div>
                 <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
                     <thead><tr><th>站点</th><th class="num">销售额</th><th class="num">销售额环比</th><th class="num">均价</th><th class="num">唯一访客</th><th class="num">加购人数</th><th class="num">加购率</th><th class="num">立即购买</th><th class="num">单量</th><th class="num">结账成功率</th><th class="num">转化率</th><th class="num">停留时间</th><th class="num">跳出率</th></tr></thead>

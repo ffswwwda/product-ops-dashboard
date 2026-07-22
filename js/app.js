@@ -556,6 +556,123 @@ const _VR = {
         return result;
     }
 };
+// 通用：解析 scopeStr → 展开为 verifyBatch 需要的 items 列表
+// 语法：type[:arg1[:arg2]]   例：site:AC美 / cat-shop:AC美:飞机杯 / site-channel-chart / cat-detail:AC美:飞机杯 / ogsm:3
+function expandScope(scopeStr) {
+    const METRIC_CN = { sales: '销售额', orders: '订单量', aov: '客单价', sku_count: 'SKU数', conv: '转化率' };
+    const M4 = ['sales', 'orders', 'aov', 'sku_count'];
+    const M2 = ['sales', 'orders'];
+    const lab = (m) => METRIC_CN[m] || m;
+    const parts = (scopeStr || '').split(':');
+    const t = parts[0];
+    const items = [];
+    if (t === 'total') {
+        [...M4, 'conv'].forEach(m => items.push({ label: '全站·' + lab(m), type: 'total', metric: m }));
+    } else if (t === 'site') {
+        const s = parts[1];
+        M4.forEach(m => items.push({ label: s + '·' + lab(m), type: 'site', key: s, metric: m }));
+        items.push({ label: s + '·转化率', type: 'site', key: s, metric: 'conv' });
+    } else if (t === 'cat-all') {
+        const c = parts[1];
+        M4.forEach(m => items.push({ label: c + '·全店铺·' + lab(m), type: 'category', key: c, metric: m }));
+    } else if (t === 'cat-shop') {
+        const s = parts[1], c = parts[2];
+        M2.forEach(m => items.push({ label: s + '·' + c + '·' + lab(m), type: 'cat-site', site: s, cat: c, metric: m }));
+        items.push({ label: s + '·' + c + '·SKU数', type: 'cat-site', site: s, cat: c, metric: 'sku_count' });
+        items.push({ label: s + '·' + c + '·客单价', type: 'cat-site', site: s, cat: c, metric: 'aov' });
+    } else if (t === 'layer') {
+        const l = parts[1];
+        M4.forEach(m => items.push({ label: '分层·' + l + '·' + lab(m), type: 'layer', key: l, metric: m }));
+    } else if (t === 'channel') {
+        const s = parts[1], ch = parts[2];
+        M2.forEach(m => items.push({ label: s + '·渠道·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m }));
+    } else if (t === 'site-channel-chart') {
+        SITES.forEach(s => (appData.channels[s] || []).forEach(ch => M2.forEach(m => items.push({ label: s + '·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m }))));
+    } else if (t === 'site-cat-chart') {
+        SITES.forEach(s => CATS.forEach(c => M4.forEach(m => items.push({ label: s + '·' + c + '·' + lab(m), type: 'cat-site', site: s, cat: c, metric: m }))));
+    } else if (t === 'site-layer-chart') {
+        SITES.forEach(s => LAYERS.forEach(l => M4.forEach(m => items.push({ label: s + '·分层·' + l + '·' + lab(m), type: 'layer', key: l, metric: m }))));
+    } else if (t === 'shop-channel-chart') {
+        const s = parts[1];
+        (appData.channels[s] || []).forEach(ch => M2.forEach(m => items.push({ label: s + '·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m })));
+    } else if (t === 'shop-cat-chart') {
+        const s = parts[1];
+        CATS.forEach(c => M4.forEach(m => items.push({ label: s + '·' + c + '·' + lab(m), type: 'cat-site', site: s, cat: c, metric: m })));
+    } else if (t === 'shop-layer-chart') {
+        const s = parts[1];
+        LAYERS.forEach(l => M4.forEach(m => items.push({ label: s + '·分层·' + l + '·' + lab(m), type: 'layer', key: l, metric: m })));
+    } else if (t === 'cat-detail') {
+        const s = parts[1], c = parts[2];
+        // structure
+        LAYERS.forEach(l => M2.forEach(m => items.push({ label: c + '·分层·' + l + '·' + lab(m), type: 'layer', key: l, metric: m })));
+        // channel
+        (appData.channels[s] || []).forEach(ch => M2.forEach(m => items.push({ label: s + '·' + c + '·渠道·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m })));
+        // shop = 跨店铺汇总
+        M4.forEach(m => items.push({ label: c + '·全店铺·' + lab(m), type: 'category', key: c, metric: m }));
+    } else if (t === 'site-breakdown') {
+        // 渠道/类目/分层明细表：3 类 × 全部
+        SITES.forEach(s => (appData.channels[s] || []).forEach(ch => M2.forEach(m => items.push({ label: s + '·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m }))));
+        SITES.forEach(s => CATS.forEach(c => M4.forEach(m => items.push({ label: s + '·' + c + '·' + lab(m), type: 'cat-site', site: s, cat: c, metric: m }))));
+        SITES.forEach(s => LAYERS.forEach(l => M4.forEach(m => items.push({ label: s + '·分层·' + l + '·' + lab(m), type: 'layer', key: l, metric: m }))));
+    } else if (t === 'cat-shop-chart') {
+        // 分店铺类目进度图：4 站点 × 2 类目 × sales/orders
+        SITES.forEach(s => CATS.forEach(c => M2.forEach(m => items.push({ label: s + '·' + c + '·' + lab(m), type: 'cat-site', site: s, cat: c, metric: m }))));
+    } else if (t === 'site-rank' || t === 'site-trend') {
+        // 排行 + 趋势：站点销售额 + 全站销售额
+        items.push({ label: '全站·销售额', type: 'total', metric: 'sales' });
+        SITES.forEach(s => items.push({ label: s + '·销售额', type: 'site', key: s, metric: 'sales' }));
+    } else if (t === 'ogsm') {
+        const i = parseInt(parts[1] || 0);
+        items.push({ label: 'OGSM 第 ' + (i + 1) + ' 行', type: 'ogsm', idx: i });
+    }
+    return items;
+}
+
+// 通用核对入口：解析 scopeStr → 弹批量核对弹窗
+function verifyCard(scopeStr, title) {
+    const items = expandScope(scopeStr);
+    if (!items.length) { showVerifyModal({ title: '无数据', steps: [{ label: '错误', value: '无法展开核对项 scope=' + scopeStr }] }); return; }
+    verifyBatch(title || ('核对 · ' + scopeStr), items);
+}
+
+// 给指定 card 注入"核对"按钮（在 card-header 右侧；无 header 则自动创建）
+function injectVerifyBtn(cardEl, scopeStr, label) {
+    if (!cardEl) return;
+    let header = cardEl.querySelector(':scope > .card-header') || cardEl.querySelector(':scope > .chart-container > .card-header') || cardEl.querySelector('.card-header');
+    if (!header) {
+        header = document.createElement('div');
+        header.className = 'card-header';
+        const title = document.createElement('div');
+        title.className = 'card-title';
+        title.textContent = label || '数据核对';
+        header.appendChild(title);
+        cardEl.insertBefore(header, cardEl.firstChild);
+    }
+    if (header.querySelector('.btn-verify-auto')) return; // 已存在
+    const btn = document.createElement('button');
+    btn.className = 'btn-verify btn-verify-auto';
+    btn.style.cssText = 'background:linear-gradient(135deg,rgba(99,102,241,.22),rgba(34,211,238,.15));border:1px solid rgba(99,102,241,.4);font-weight:600;font-size:11.5px;padding:4px 10px;border-radius:6px;cursor:pointer;color:var(--radium-text-strong);flex-shrink:0;white-space:nowrap;';
+    btn.textContent = '核对';
+    btn.title = '核对' + (label || scopeStr) + ' · 该板块所有数据';
+    btn.onclick = (e) => { e.stopPropagation(); verifyCard(scopeStr, label || ('核对 · ' + scopeStr)); };
+    // 策略：有 .card-actions → 插入到它前面；无 → 追加到末尾 + margin-left:auto
+    const actions = header.querySelector('.card-actions');
+    if (actions) {
+        actions.parentNode.insertBefore(btn, actions);
+    } else {
+        btn.style.marginLeft = 'auto';
+        header.appendChild(btn);
+    }
+}
+
+// 扫描 root 下所有 [data-verify] 自动挂载核对按钮
+function initVerifyBtns(root) {
+    const r = root || document;
+    r.querySelectorAll('[data-verify]').forEach(card => {
+        injectVerifyBtn(card, card.getAttribute('data-verify'), card.getAttribute('data-verify-label') || card.getAttribute('data-verify'));
+    });
+}
+
 function verifyData(scope) {
     const r = _VR.run(scope);
     showVerifyModal(r);
@@ -606,12 +723,9 @@ function showVerifyModal(r) {
     modal.classList.add('open');
 }
 
-// 批量核对 items 暂存（3 大板块每次 render 覆盖一次，HTML onclick 读 _BAT.X）
-window._BAT = window._BAT || { site: null, category: null, product: null };
-
 /* ----------------- 加载 ----------------- */
 /* ----------------- 加载 ----------------- */
-document.addEventListener('DOMContentLoaded', () => { loadData(); initNavigation(); initModalBackdropClose(); });
+document.addEventListener('DOMContentLoaded', () => { loadData(); initNavigation(); initModalBackdropClose(); setTimeout(() => initVerifyBtns(), 100); });
 
 async function loadData() {
     try {
@@ -743,6 +857,7 @@ function switchPage(page, sub) {
     else if (page === 'strategy' && sub === 'lib') renderStrategyLib();
     else if (page === 'audit') renderAudit();
     attachDerivation(id, page, sub);
+    setTimeout(() => initVerifyBtns(), 50);
 }
 
 /* ===================================================================
@@ -767,13 +882,7 @@ function renderSiteAll() {
         target_aov: blendedAovTarget, target_conv: null,
         mom: A.mom.total, momLabel: '全站环比', title: '全部站点 · 目标对照总览',
         meta: `${SITES.length} 店铺合并`
-    }) + `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
-        <button class="btn-verify" style="background:linear-gradient(135deg,rgba(99,102,241,.25),rgba(34,211,238,.18));border:1px solid rgba(99,102,241,.45);font-weight:600;" onclick="verifyBatch('站点板块', _BAT.site)" title="一次跑完站点板块全部指标的核对（系统化覆盖，非手工逐个）">批量核对站点板块（${window._BAT.site.length}项）</button>
-        <button class="btn-verify" onclick="verifyData({type:'total',metric:'sales'})">核对总销售额</button>
-        <button class="btn-verify" onclick="verifyData({type:'total',metric:'orders'})">核对总单量</button>
-        <button class="btn-verify" onclick="verifyData({type:'total',metric:'aov'})">核对总客单价</button>
-        <button class="btn-verify" onclick="verifyData({type:'total',metric:'conv'})">核对总转化率</button>
-    </div>`;
+    });
     // 排行
     const rank = safeInit('site-rank-chart');
     rank.setOption({ tooltip: { trigger: 'axis' }, __unit: 'sales', grid: { left: 60, right: 20, top: 20, bottom: 30 },
@@ -973,7 +1082,7 @@ function renderCategoryAll() {
             <div class="stat-card-sub">环比 ${pct(A.mom.by_category[c])} ${A.mom.by_category[c] >= 0 ? '' : ''} · 单量 ${num(d.orders)}</div>
         </div>`;
     });
-    document.getElementById('category-cards').innerHTML = '<div style="margin-bottom:12px;"><button class="btn-verify" style="background:linear-gradient(135deg,rgba(99,102,241,.25),rgba(34,211,238,.18));border:1px solid rgba(99,102,241,.45);font-weight:600;" onclick="verifyBatch(\'类目板块\', _BAT.category)" title="一次跑完类目板块全部指标的核对">批量核分类目板块（' + window._BAT.category.length + '项）</button></div>' + rows;
+    document.getElementById('category-cards').innerHTML = rows;
     // 分店铺类目进度(分组柱)
     const csc = safeInit('category-shop-chart');
     csc.setOption({ tooltip: { trigger: 'axis' }, __unit: 'sales', legend: { data: CATS, textStyle: { color: '#94a3b8' } },
@@ -1072,10 +1181,6 @@ function renderProductAll() {
     const metric = state.productMetric || 'sales';
     const def = METRIC_DEF[metric];
     const list = (appData.sku_master || []).filter(r => (shop === '全部店铺' || r.site === shop) && (layerF === '全部层级' || r.layer === layerF));
-    // 批量核对 items：商品结构层板块（5 层 × sales = 5 项）
-    window._BAT.product = LAYERS.map(l => ({ label: l + ' 销售额', type: 'layer', key: l, metric: 'sales' }));
-    const batchBtn = document.getElementById('product-batch-btn');
-    if (batchBtn) batchBtn.innerHTML = '<button class="btn-verify" style="background:linear-gradient(135deg,rgba(99,102,241,.25),rgba(34,211,238,.18));border:1px solid rgba(99,102,241,.45);font-weight:600;" onclick="verifyBatch(\'商品结构层板块\', _BAT.product)" title="一次跑完商品结构层板块全部指标的核对">批量核对商品结构层（' + window._BAT.product.length + '项）</button>';
     document.getElementById('product-structure-title').textContent = '商品结构层' + def.label + '（实际）';
     document.getElementById('product-trend-title').textContent = '结构层实际 vs 目标结构（' + def.label + '）';
     // 结构图：按指标用柱状图
