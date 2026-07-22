@@ -591,49 +591,96 @@ body::after {
 }
 
 /* ===== OGSM 复盘表 ===== */
-/* OGSM 真实数据 → 卡片式布局（每行一张卡，避免 12 列表被压歪） */
-.ogsm-cards { display: flex; flex-direction: column; gap: 14px; }
-.ogsm-card {
-    background: rgba(15, 23, 42, 0.55);
-    border: 1px solid var(--radium-border);
-    border-radius: 12px;
+/* OGSM 真实数据 + 生成周复盘 → 真表格（列头 thead 顶部）
+   策略：table-layout:fixed + colgroup 百分比 + 单元格 line-clamp 折行 + 外层横向滚动兜底
+   总列宽 100% 容器，13 列按重要性分配（板块/衡量/进度/状态/核对 窄；完成D/检查C 宽） */
+.ogsm-table {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 1100px;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+.ogsm-table thead th {
+    position: sticky; top: 0;
+    background: linear-gradient(180deg, #1e293b, #0f172a);
+    color: #e2e8f0;
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 8px;
+    border-bottom: 2px solid rgba(99,102,241,.4);
+    white-space: nowrap;
+    z-index: 2;
+}
+.ogsm-table tbody td {
+    padding: 8px 8px;
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    vertical-align: top;
+    line-height: 1.5;
+    color: var(--radium-text-primary);
+}
+.ogsm-table tbody tr:hover { background: rgba(99,102,241,.05); }
+/* 长文本单元格：3 行 line-clamp + overflow */
+.ogsm-table td.ogc-cell {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
     overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+    max-height: 4.6em;
+    font-size: 12px;
+    color: var(--radium-text-primary);
 }
-.ogsm-card-head {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px;
-    background: linear-gradient(90deg, rgba(99,102,241,.12), rgba(34,211,238,.06));
-    border-bottom: 1px solid var(--radium-border);
-    gap: 12px;
+.ogsm-table td.ogc-fillD {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+    max-height: 4.6em;
+    font-size: 12px;
 }
-.ogsm-card-title { font-size: 14px; font-weight: 600; color: var(--radium-text-strong); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.ogsm-card-purpose { font-size: 12.5px; font-weight: 400; color: var(--radium-text-muted); }
-.ogsm-card-status { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.ogsm-prog { font-size: 13px; color: var(--radium-text-strong); }
-.ogsm-card-body { padding: 8px 16px 4px; display: grid; grid-template-columns: 1fr; gap: 6px; }
-.ogsm-card-row { display: grid; grid-template-columns: 80px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px dashed rgba(255,255,255,.04); align-items: start; }
-.ogsm-card-row:last-child { border-bottom: none; }
-.ogsm-label { font-size: 12px; color: var(--radium-text-muted); font-weight: 500; padding-top: 2px; }
-.ogsm-val { font-size: 13px; color: var(--radium-text-primary); line-height: 1.6; word-break: break-word; white-space: pre-wrap; }
-.ogc-check .ogsm-val { max-height: 120px; overflow-y: auto; background: rgba(0,0,0,.15); padding: 8px 10px; border-radius: 8px; font-size: 12px; }
-.ogsm-card-foot { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px; background: rgba(0,0,0,.15); border-top: 1px solid var(--radium-border); }
-.ogsm-chip { font-size: 11.5px; padding: 3px 10px; background: rgba(99,102,241,.14); color: #a5b4fc; border: 1px solid rgba(99,102,241,.3); border-radius: 6px; }
-.ogc-next { background: rgba(34,211,238,.12); color: #22d3ee; border-color: rgba(34,211,238,.3); flex: 1; min-width: 200px; }
-
-/* 生成周复盘（ogsms-gen）：可编辑表格也改用卡片堆叠，每行一张 */
-.ogsm-week-card {
-    background: rgba(15, 23, 42, 0.55);
+.ogsm-table td.ogc-check {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    word-break: break-word;
+    max-height: 6em;
+    font-size: 11.5px;
+    color: var(--radium-text-muted);
+    white-space: pre-wrap;
+}
+.ogsm-table td.ogc-prog { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ogsm-table td .ogc-cat { font-size: 10.5px; color: var(--radium-text-muted); margin-top: 2px; }
+.ogsm-table td .ogc-hide { display: none; }
+/* 单元格内可编辑 textarea（周复盘 D 列） */
+.ogsm-table .ogc-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 56px;
+    background: rgba(0,0,0,.25);
     border: 1px solid var(--radium-border);
-    border-radius: 12px;
-    padding: 14px 16px;
-    margin-bottom: 12px;
+    color: var(--radium-text-primary);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    font-family: inherit;
+    resize: vertical;
+    display: block;
 }
-.ogsm-week-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
-.ogsm-week-head .ogsm-chip { font-size: 12px; padding: 3px 8px; }
-.ogsm-week-field { margin: 6px 0; }
-.ogsm-week-field label { display: block; font-size: 12px; color: var(--radium-text-muted); margin-bottom: 4px; }
-.ogsm-week-field textarea { width: 100%; box-sizing: border-box; background: rgba(0,0,0,.25); border: 1px solid var(--radium-border); color: var(--radium-text-primary); border-radius: 8px; padding: 8px 10px; font-size: 13px; line-height: 1.5; resize: vertical; }
-.ogsm-week-field textarea:focus { outline: none; border-color: var(--radium-accent-cyan); }
+.ogsm-table .ogc-textarea:focus { outline: none; border-color: var(--radium-accent-cyan); }
+/* 兼容：保持旧的 .ogsm-table 类不破坏基础 .data-table 样式 */
+
+/* OGSM 表格外层容器（带横向滚动兜底，确保不会把容器撑出视口） */
+#ogsms-real, #ogsms-report {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
 .tag-gray { background: rgba(148,163,184,.16); color: #94a3b8; border: 1px solid rgba(148,163,184,.3); }
 
 /* 计算说明面板（站点/类目/商品 板块内联） */

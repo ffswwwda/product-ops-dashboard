@@ -2298,8 +2298,24 @@ function renderWeeklyReview() {
         return;
     }
     const saved = JSON.parse(localStorage.getItem('ogsm_' + state.month + '_' + week) || '{}');
-    let html = `<div style="margin-bottom:12px;font-size:13px;color:var(--radium-text-muted);">根据真实 7月OGSM（${esc(o.meta.source || '')}）逐行生成完成进度与检查项 ｜ 周期：${esc(week)} ｜ 截止 ${state.cutoff.slice(5)} ｜ 时间进度 ${state.timeProgress}%</div>
-        <div class="ogsm-cards">`;
+    // 真表格：列头 thead 顶部；textarea 嵌在 td 内，table-layout:fixed + 100%宽度
+    const cols = [
+        { w: '6%',  t: '板块' },
+        { w: '8%',  t: '目的' },
+        { w: '10%', t: '目标' },
+        { w: '7%',  t: '店铺' },
+        { w: '6%',  t: '责任人' },
+        { w: '6%',  t: '衡量' },
+        { w: '8%',  t: '解析目标' },
+        { w: '8%',  t: '实际(来源)' },
+        { w: '6%',  t: '进度' },
+        { w: '6%',  t: '状态' },
+        { w: '12%', t: '系统检查' },
+        { w: '12%', t: '完成 D(可编辑)' },
+        { w: '5%',  t: '核对' }
+    ];
+    let html = '<div style="margin-bottom:12px;font-size:13px;color:var(--radium-text-muted);">根据真实 7月OGSM（' + esc(o.meta.source || '') + '）逐行生成完成进度与检查项 ｜ 周期：' + esc(week) + ' ｜ 截止 ' + state.cutoff.slice(5) + ' ｜ 时间进度 ' + state.timeProgress + '%</div>';
+    html += '<table class="data-table ogsm-table"><colgroup>' + cols.map(c => '<col style="width:' + c.w + '">').join('') + '</colgroup><thead><tr>' + cols.map(c => '<th>' + c.t + '</th>').join('') + '</tr></thead><tbody>';
     o.rows.forEach((r, i) => {
         const key = 'r' + i;
         const data = computeOgsmFromRow(r);
@@ -2316,7 +2332,7 @@ function renderWeeklyReview() {
             statusHtml = ogsmStatusTag((r.weeks[0] || {}).status || '—');
             checkTxt = buildOgsmCheck(r, data);
         } else {
-            targetTxt = fmtOgsmValue(data.target, data.unit) + (data.cat ? '<span style="color:var(--radium-text-muted);font-size:11px;"> · ' + data.cat + '</span>' : '');
+            targetTxt = fmtOgsmValue(data.target, data.unit) + (data.cat ? '<div class="ogc-cat">' + data.cat + '</div>' : '');
             actualTxt = fmtOgsmValue(data.actual, data.unit) + ' <span class="tag tag-green">真实</span>';
             progTxt = '<b>' + pct(data.progress) + '</b>';
             statusHtml = ogsmStatusTag(data.status) + ' ' + Math.abs(data.gapPct).toFixed(1) + '%';
@@ -2328,28 +2344,25 @@ function renderWeeklyReview() {
         const defC = checkTxt;
         const d = sv.D || defD;
         const c = sv.check || defC;
-        html += `<div class="ogsm-week-card">
-            <div class="ogsm-week-head">
-                <span class="ogsm-chip"><b>${esc(r['板块'] || '—')}</b></span>
-                <span class="ogsm-chip">${esc(r['落地店铺'] || '—')}</span>
-                <span class="ogsm-chip">${esc(r['责任人'] || '—')}</span>
-                <span class="ogsm-chip">${esc(r['衡量'] || '')}</span>
-                <span style="margin-left:auto;display:flex;gap:6px;align-items:center;">${statusHtml}<span style="font-size:13px;">${progTxt}</span></span>
-            </div>
-            <div class="ogsm-week-field"><label>目的</label><div style="font-size:13px;color:var(--radium-text-primary);">${esc(r['目的'] || '')}</div></div>
-            <div class="ogsm-week-field"><label>目标(原文)</label><div style="font-size:13px;color:var(--radium-text-primary);">${esc(r['目标'] || '')}</div></div>
-            <div class="ogsm-week-field"><label>解析目标 / 实际(来源)</label>
-                <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:13px;">
-                    <div><span style="color:var(--radium-text-muted);">解析目标：</span>${targetTxt}</div>
-                    <div><span style="color:var(--radium-text-muted);">实际：</span>${actualTxt}</div>
-                </div>
-            </div>
-            <div class="ogsm-week-field"><label>检查项(系统生成)</label><div style="font-size:12px;color:var(--radium-text-muted);white-space:pre-wrap;background:rgba(0,0,0,.15);padding:8px 10px;border-radius:8px;">${esc(checkTxt)}</div></div>
-            <div class="ogsm-week-field"><label>完成 D(可编辑)</label><textarea id="d_${key}" style="width:100%;box-sizing:border-box;min-height:64px;background:rgba(0,0,0,.25);border:1px solid var(--radium-border);color:var(--radium-text-primary);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.5;resize:vertical;">${esc(d)}</textarea></div>
-            <div class="ogsm-week-field"><label>检查(可编辑)</label><textarea id="c_${key}" style="width:100%;box-sizing:border-box;min-height:64px;background:rgba(0,0,0,.25);border:1px solid var(--radium-border);color:var(--radium-text-primary);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.5;resize:vertical;">${esc(c)}</textarea></div>
-        </div>`;
+        html += '<tr>' +
+            '<td><b>' + esc(r['板块'] || '—') + '</b></td>' +
+            '<td class="ogc-cell">' + esc(r['目的'] || '') + '</td>' +
+            '<td class="ogc-cell">' + esc(r['目标'] || '') + '</td>' +
+            '<td>' + esc(r['落地店铺'] || '—') + '</td>' +
+            '<td>' + esc(r['责任人'] || '—') + '</td>' +
+            '<td>' + esc(r['衡量'] || '') + '</td>' +
+            '<td>' + targetTxt + '</td>' +
+            '<td>' + actualTxt + '</td>' +
+            '<td class="ogc-prog">' + progTxt + '</td>' +
+            '<td>' + statusHtml + '</td>' +
+            '<td class="ogc-check">' + esc(checkTxt) + '</td>' +
+            '<td><textarea id="d_' + key + '" class="ogc-textarea">' + esc(d) + '</textarea></td>' +
+            '<td><button class="btn-verify" onclick="verifyData({type:\'ogsm\',idx:' + i + '})" title="按真实数据逐项重算 + 准确率">核对</button></td>' +
+        '</tr>';
+        // 附加隐藏的 c_ textarea 行（保持与 saveWeeklyReview 兼容）
+        html += '<tr class="ogc-hide"><td colspan="' + cols.length + '"><textarea id="c_' + key + '" class="ogc-textarea" style="display:none;">' + esc(c) + '</textarea></td></tr>';
     });
-    html += `</div>`;
+    html += '</tbody></table>';
     box.innerHTML = html;
 }
 function saveWeeklyReview() {
@@ -2390,11 +2403,27 @@ function renderOgsmReal() {
     }
     const meta = document.getElementById('ogsms-real-meta');
     if (meta) meta.textContent = (o.meta.scope ? '范围：' + o.meta.scope + ' ｜ ' : '') + (o.meta.period_label || '') + ' ｜ 来源：' + (o.meta.source || '');
-    let html = `<div class="ogsm-cards">`;
+    // 真表格：列头在 thead 顶部，table-layout:fixed + 百分比列宽，避免被压歪或截断
+    const cols = [
+        { w: '5%',  t: '板块' },
+        { w: '8%',  t: '目的' },
+        { w: '10%', t: '目标' },
+        { w: '10%', t: '策略' },
+        { w: '5%',  t: '衡量' },
+        { w: '8%',  t: '计划' },
+        { w: '7%',  t: '店铺' },
+        { w: '6%',  t: '责任人' },
+        { w: '14%', t: '完成 D' },
+        { w: '6%',  t: '进度' },
+        { w: '6%',  t: '状态' },
+        { w: '11%', t: '检查 C' },
+        { w: '4%',  t: '核对' }
+    ];
+    let html = `<table class="data-table ogsm-table"><colgroup>${cols.map(c => '<col style="width:' + c.w + '">').join('')}</colgroup><thead><tr>${cols.map(c => '<th>' + c.t + '</th>').join('')}</tr></thead><tbody>`;
     o.rows.forEach((r, idx) => {
         const d = computeOgsmFromRow(r);
         const w = r.weeks[0] || {};
-        const prog = d.ok ? `<b>${pct(d.progress)}</b>` : '—';
+        const prog = d.ok ? '<b>' + pct(d.progress) + '</b>' : '—';
         const st = d.ok ? ogsmStatusTag(d.status) + ' ' + Math.abs(d.gapPct).toFixed(1) + '%' : (d.targetMissing ? ogsmStatusTag('缺目标') : ogsmStatusTag(w.status));
         const chk = buildOgsmCheck(r, d);
         let fillD;
@@ -2402,26 +2431,23 @@ function renderOgsmReal() {
         else if (d.targetMissing) fillD = (d.metric === 'aov' ? '实际客单价' : '完成') + fmtOgsmValue(d.actual, d.unit) + '（真实），目标：缺失（数据源未提供' + (d.metric === 'aov' ? '类目级客单价' : '该类目级') + '目标）';
         else if (d.ok) fillD = '完成' + fmtOgsmValue(d.actual, d.unit) + '，目标' + fmtOgsmValue(d.target, d.unit) + '，进度' + pct(d.progress) + '，' + d.status + Math.abs(d.gapPct).toFixed(1) + '%';
         else fillD = (w.D || '—');
-        html += `<div class="ogsm-card">
-            <div class="ogsm-card-head">
-                <div class="ogsm-card-title">${esc(r['板块'])}<span class="ogsm-card-purpose">${esc(r['目的'] || '')}</span></div>
-                <div class="ogsm-card-status">${st}<span class="ogsm-prog">${prog}</span><button class="btn-verify" onclick="verifyData({type:'ogsm',idx:${idx}})" title="按真实数据逐项重算 + 准确率">核对</button></div>
-            </div>
-            <div class="ogsm-card-body">
-                <div class="ogsm-card-row"><span class="ogsm-label">目标</span><span class="ogsm-val">${esc(r['目标'] || '—')}</span></div>
-                <div class="ogsm-card-row"><span class="ogsm-label">策略/衡量</span><span class="ogsm-val">${esc(r['策略'] || '—')}（${esc(r['衡量'] || '')}）</span></div>
-                <div class="ogsm-card-row"><span class="ogsm-label">计划</span><span class="ogsm-val">${esc(r['计划'] || '—')}</span></div>
-                <div class="ogsm-card-row"><span class="ogsm-label">完成 D</span><span class="ogsm-val">${esc(fillD)}</span></div>
-                <div class="ogsm-card-row ogc-check"><span class="ogsm-label">检查 C</span><span class="ogsm-val">${esc(chk)}</span></div>
-            </div>
-            <div class="ogsm-card-foot">
-                <span class="ogsm-chip">${esc(r['落地店铺'] || '—')}</span>
-                <span class="ogsm-chip">${esc(r['责任人'] || '—')}</span>
-                <span class="ogsm-chip ogc-next">下一步：${esc(w.next || '—')}</span>
-            </div>
-        </div>`;
+        html += '<tr>' +
+            '<td><b>' + esc(r['板块']) + '</b></td>' +
+            '<td class="ogc-cell">' + esc(r['目的'] || '') + '</td>' +
+            '<td class="ogc-cell">' + esc(r['目标'] || '—') + '</td>' +
+            '<td class="ogc-cell">' + esc(r['策略'] || '—') + '</td>' +
+            '<td>' + esc(r['衡量'] || '') + '</td>' +
+            '<td class="ogc-cell">' + esc(r['计划'] || '—') + '</td>' +
+            '<td>' + esc(r['落地店铺'] || '—') + '</td>' +
+            '<td>' + esc(r['责任人'] || '—') + '</td>' +
+            '<td class="ogc-fillD">' + esc(fillD) + '</td>' +
+            '<td class="ogc-prog">' + prog + '</td>' +
+            '<td>' + st + '</td>' +
+            '<td class="ogc-check">' + esc(chk) + '</td>' +
+            '<td><button class="btn-verify" onclick="verifyData({type:\'ogsm\',idx:' + idx + '})" title="按真实数据逐项重算 + 准确率">核对</button></td>' +
+        '</tr>';
     });
-    html += `</div>`;
+    html += '</tbody></table>';
     box.innerHTML = html;
 }
 
