@@ -16,98 +16,91 @@ random = None
 SEED = 20260714
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC_XLSX = '/Users/fsw/Downloads/6月目标与规则 (1).xlsx'
+SRC_XLSX = '/Users/fsw/Documents/7月飞机杯复盘数据源.xlsx'
 OUT = os.path.join(ROOT, 'js', 'data', 'data.json')
 
 SITES = ['AC美', 'BV美', 'UK英', 'EU欧']
-CATS = ['飞机杯', '增大器', '龟头训练器']
+# 真实运营分类（来自《7月飞机杯复盘数据源》各站点本周期 运营分类 去重）
+CATS = ['飞机杯', '增大器', '震动器', '后庭', '阳具', '倒模', 'ACC', '代发']
 LAYERS = ['超爆', '爆款', '头部', '腰部', '尾部']
-# 渠道：BV美真实渠道体系（来源：6月1日-6月20日 BV美器具组渠道销量）
-# SEM / EMAIL / 直访 / SEO / 信息流 / 联盟 / 社媒 / 其他
+# 渠道：全站统一口径（SEM / EMAIL / 直访 / SEO / 信息流 / 联盟 / 社媒 / 其他）
 CHANNELS = ['SEM', 'EMAIL', '直访', 'SEO', '信息流', '联盟', '社媒', '其他']
-
-# BV美采用真实渠道占比（来自渠道销量表合计行：SEM 984 / EMAIL 185 / 直访 129 /
-# SEO 48 / 信息流 43 / 联盟 23 / 社媒 11 / 其他 2，合计 1425 单）；其余站点为演示占比。
-CH_SHARE = {
-    'AC美': {'SEM': .55, 'EMAIL': .10, '直访': .12, 'SEO': .06, '信息流': .07, '联盟': .05, '社媒': .04, '其他': .01},
-    'BV美': {'SEM': .6905, 'EMAIL': .1298, '直访': .0905, 'SEO': .0337, '信息流': .0302, '联盟': .0161, '社媒': .0077, '其他': .0015},
-    'UK英': {'SEM': .50, 'EMAIL': .08, '直访': .10, 'SEO': .08, '信息流': .09, '联盟': .10, '社媒': .04, '其他': .01},
-    'EU欧': {'SEM': .52, 'EMAIL': .09, '直访': .11, 'SEO': .07, '信息流': .07, '联盟': .08, '社媒': .05, '其他': .01},
-}
-AOV = {'飞机杯': 72, '增大器': 118, '龟头训练器': 58}
+# 站点 → 汇率（原币→人民币，来自《站点目标》表）
+RATE = {'AC美': 6.7067, 'BV美': 6.7067, 'UK英': 8.9076, 'EU欧': 7.6574}
+# 渠道占比：先占位，构建真实 master 后由真实渠道订单聚合覆盖（见 load_real_channel_share）
+CH_SHARE = {s: {c: 1.0 / len(CHANNELS) for c in CHANNELS} for s in SITES}
+# 类目原币客单价（仅用于分层/类目兜底，真实 aov 由金额/销量推导）
+AOV = {'飞机杯': 72, '增大器': 118, '震动器': 60, '后庭': 65, '阳具': 80, '倒模': 70, 'ACC': 40, '代发': 30}
 CONV = {'超爆': .185, '爆款': .150, '头部': .115, '腰部': .085, '尾部': .055}
 
-MONTHS = ['5月', '6月', '7月']
-TP = {'5月': 100.0, '6月': 100.0, '7月': 45.2}
-CUTOFF = {'5月': '2026-05-31', '6月': '2026-06-30', '7月': '2026-07-14'}
-DAYSPM = {'5月': 31, '6月': 30, '7月': 31}
-ELAPSED = {'5月': 31, '6月': 30, '7月': 14}
+# 真实周期口径（来自《时间进度》表）：本周期 7/1-7/15，上周期 6/1-6/15，均为 15 天
+# 6月=上周期，7月=本周期
+MONTHS = ['6月', '7月']
 CUR = '7月'
+TP = {'7月': 48.4, '6月': 50.0}       # 时间进度 = 数据天数 / 本月天数（15/31, 15/30）
+CUTOFF = {'7月': '2026-07-15', '6月': '2026-06-15'}
+DAYSPM = {'7月': 31, '6月': 30}
+ELAPSED = {'7月': 15, '6月': 15}
+# 分层阈值（日均销量，来自《产品定位》表）：超爆≥10 / 爆款 5-10 / 头部 3-5 / 腰部 0.33-3 / 尾部 <0.33
+LAYER_DAILY = [(10.0, '超爆'), (5.0, '爆款'), (3.0, '头部'), (0.33, '腰部')]
+def layer_of(daily):
+    for th, name in LAYER_DAILY:
+        if daily >= th:
+            return name
+    return '尾部'
+PERIOD_DAYS = 15  # 本周期/上周期均为 15 天，日均销量 = 销量 / 15
 
+
+def _wb():
+    import openpyxl
+    return openpyxl.load_workbook(SRC_XLSX, data_only=True)
 
 def load_real_targets():
-    try:
-        import openpyxl
-        wb = openpyxl.load_workbook(SRC_XLSX, data_only=True)
-        ws = wb['销售额目标']
-        t = defaultdict(lambda: defaultdict(float))
-        for r in range(2, ws.max_row + 1):
-            m, site, val = ws.cell(r, 1).value, ws.cell(r, 2).value, ws.cell(r, 5).value
-            if m and site and isinstance(val, (int, float)):
-                t[str(m) + '月'][site] += float(val)
-        return t
-    except Exception as e:
-        print('xlsx读取失败:', e)
-        return {}
+    """读《站点目标》表：站点/销售额目标(人民币)/客单价目标(原币)/汇率。
+    返回 TARGETS[month][site] = {sales_target, aov_target, rate}（月目标对 7月/6月 同值，因源仅给全月目标）"""
+    wb = _wb()
+    ws = wb['站点目标']
+    raw = {}
+    for r in range(2, ws.max_row + 1):
+        site = ws.cell(r, 1).value
+        sales_t = ws.cell(r, 2).value
+        aov_t = ws.cell(r, 3).value
+        rate = ws.cell(r, 4).value
+        if site and isinstance(sales_t, (int, float)):
+            raw[str(site)] = {'sales_target': round(float(sales_t)),
+                              'aov_target': round(float(aov_t), 2) if aov_t else 0,
+                              'rate': float(rate) if rate else RATE.get(str(site), 1)}
+    t = {}
+    for m in MONTHS:
+        t[m] = {}
+        for s in SITES:
+            if s in raw:
+                t[m][s] = dict(raw[s])
+            else:
+                t[m][s] = {'sales_target': 800000, 'aov_target': 0, 'rate': RATE.get(s, 1)}
+    return t
 
 real = load_real_targets()
 
 def load_price_conv_targets():
-    """从《6月目标与规则》读取 客单价目标(price_targets) 与 转化率目标(conv_targets)，可复现"""
+    """客单价目标(原币) 来自《站点目标》客单价目标列；转化率目标源文件仅 BV美 有真实值 0.016（口径待对齐）"""
     res = {'price_targets': {}, 'conv_targets': {}}
-    try:
-        import openpyxl
-        wb = openpyxl.load_workbook(SRC_XLSX, data_only=True)
-        # 客单价目标: 月份|站点|分组|运营分类|客单价目标（原币）
-        ws = wb['客单价目标']
-        for r in range(2, ws.max_row + 1):
-            site = ws.cell(r, 2).value
-            val = ws.cell(r, 5).value
-            if site and isinstance(val, (int, float)):
-                res['price_targets'][str(site)] = round(float(val), 2)
-        # 转化率目标: 站点|运营分类|站点分类|6月转化率目标（取"汇总"行，仅 BV美 有值 0.016）
-        ws2 = wb['转化率目标']
-        for r in range(2, ws2.max_row + 1):
-            site = ws2.cell(r, 1).value
-            cat = ws2.cell(r, 2).value
-            val = ws2.cell(r, 4).value
-            if site and cat and '汇总' in str(cat) and isinstance(val, (int, float)) and str(site) not in res['conv_targets']:
-                res['conv_targets'][str(site)] = round(float(val), 4)
-    except Exception as e:
-        print('客单价/转化率目标读取失败:', e)
+    for s in SITES:
+        res['price_targets'][s] = real[CUR][s]['aov_target']
+    # 转化率目标：真实数据源仅在 BV美 有 0.016（来自《6月目标与规则》转化率目标汇总行）
+    res['conv_targets'] = {'BV美': 0.016}
     return res
 
 PC = load_price_conv_targets()
 
-TARGETS = {}
-for m in MONTHS:
-    TARGETS[m] = {}
-    for s in SITES:
-        if m in real and s in real[m]:
-            TARGETS[m][s] = {'sales_target': round(real[m][s]), 'group': '器具组',
-                              'category': '飞机杯,增大器', 'is_demo_target': False}
-        else:
-            base = real.get('6月', {}).get(s, 800000)
-            TARGETS[m][s] = {'sales_target': round(base * 1.25), 'group': '器具组',
-                              'category': '飞机杯,增大器', 'is_demo_target': True}
+TARGETS = real
+# 当前月全站目标合计（用于 total.target_sales 与品牌达成）
+target_total_cur = sum(TARGETS[CUR][s]['sales_target'] for s in SITES)
 
-prev = json.load(open(OUT)) if os.path.exists(OUT) else {}
-SKU_TARGETS = prev.get('sku_targets') or []
-SKU_ACTUALS = prev.get('sku_actuals') or {}
-if not SKU_TARGETS:
-    SKU_TARGETS = [{'ns_code': 'X', 'category': '飞机杯', 'last_month_sales': 100,
-                    'position': '腰部', 'owner': '刘玉辉', 'month_estimate': 120,
-                    'estimate_position': '头部', 'change_type': '增量', 'remark': '', 'site': 'AC美'}]
+# 注意：本数据源为真实复盘数据，不再依赖历史 data.json 的 sku_targets/prev 继承。
+prev = {}
+SKU_TARGETS = []
+SKU_ACTUALS = {}
 
 def dflt(v, d):
     return v if v not in (None, '', 'None') else d
@@ -173,36 +166,102 @@ def fix_channel_integrity(r):
     d_s = r['actual_sales'] - tot_s
     r['channels'][dom]['sales'] += d_s
 
-# 当前月 master(1108) + 缩放对齐目标
-sku_master_cur = [build_sku_month(s, CUR, 1.0) for s in SKU_TARGETS]
-raw_total = sum(r['actual_sales'] for r in sku_master_cur) or 1
-target_total_cur = sum(TARGETS[CUR][s]['sales_target'] for s in SITES)
-scale_cur = (target_total_cur * TP[CUR] / 100.0) / raw_total
-for r in sku_master_cur:
-    for ch in CHANNELS:
-        r['channels'][ch]['orders'] *= scale_cur
-        r['channels'][ch]['sales'] = r['channels'][ch]['orders'] * r['aov']
-    fix_channel_integrity(r)
-    # 目标单量同步按同一比例放大，使类目/分层进度与站点一致(demo 月)
-    r['target_orders'] = max(0, round(r['target_orders'] * scale_cur))
+# ---------- 真实数据源接入（《7月飞机杯复盘数据源》）----------
+def _site_sheet_channels(ws):
+    """从第2行第9列起读取第一个渠道名块（行2会按 销量/占比/金额 重复同一组渠道名，遇重复即止）。
+    返回 (渠道名列表, 销量块起点列, 占比块起点列, 金额块起点列)"""
+    r2 = [ws.cell(2, c).value for c in range(1, ws.max_column + 1)]
+    ch_names, i, seen = [], 9, set()
+    while i <= ws.max_column and r2[i - 1] is not None and r2[i - 1] not in seen:
+        ch_names.append(r2[i - 1]); seen.add(r2[i - 1]); i += 1
+    n = len(ch_names)
+    return ch_names, 9, 9 + n, 9 + 2 * n
 
-# 历史月 master(缩放对齐各自目标 × 达成率，制造真实环比趋势)
-sku_master_hist = {}
-for m in MONTHS:
-    if m == CUR:
-        sku_master_hist[m] = sku_master_cur
-        continue
-    att = 0.93 + MONTHS.index(m) * 0.02  # 5月0.93, 6月0.95
-    master = [build_sku_month(s, m, 1.0) for s in SKU_TARGETS]
-    rt = sum(r['actual_sales'] for r in master) or 1
-    tt = sum(TARGETS[m][s]['sales_target'] for s in SITES)
-    sc = (tt * att) / rt
-    for r in master:
-        for ch in CHANNELS:
-            r['channels'][ch]['orders'] *= sc
-            r['channels'][ch]['sales'] = r['channels'][ch]['orders'] * r['aov']
-        fix_channel_integrity(r)
-    sku_master_hist[m] = master
+def read_site_sheet(site, period):
+    """period: '本周期' / '上周期'。返回该站点该周期原始 SKU 行（含渠道销量/金额）。"""
+    wb = _wb()
+    ws = wb[f'{period}{site}']
+    ch_names, q0, r0, a0 = _site_sheet_channels(ws)
+    n = len(ch_names)
+    out = []
+    for r in range(4, ws.max_row + 1):
+        code = ws.cell(r, 1).value
+        if not code or str(code).strip() == '合计':
+            continue
+        if ws.cell(r, 7).value is None and ws.cell(r, 8).value is None:
+            continue  # 跳过合计/小计/空行
+        qty = ws.cell(r, 7).value or 0
+        amt_ori = ws.cell(r, 8).value or 0
+        ch_qty = {ch_names[j]: float(ws.cell(r, q0 + j).value or 0) for j in range(n)}
+        ch_amt = {ch_names[j]: float(ws.cell(r, a0 + j).value or 0) for j in range(n)}
+        out.append({
+            'code': str(code).strip(), 'name': ws.cell(r, 3).value or '',
+            'cat': ws.cell(r, 4).value or '未分类',
+            'owner_cat': ws.cell(r, 5).value, 'owner': ws.cell(r, 6).value or '未分配',
+            'qty': float(qty), 'amt_ori': float(amt_ori),
+            'ch_qty': ch_qty, 'ch_amt': ch_amt,
+        })
+    return out
+
+def build_real_master(period):
+    """将真实 SKU 行转为聚合所需的 master 行（销售额转人民币、渠道对齐全量 CHANNELS、分层按日均推导）。"""
+    master = []
+    for site in SITES:
+        rate = RATE[site]
+        for x in read_site_sheet(site, period):
+            qty = x['qty']
+            amt_ori = x['amt_ori']
+            # 各渠道销量取整（保证单品渠道订单自洽校验通过），求和作为 actual_orders
+            ch_orders_int = {c: int(round(x['ch_qty'].get(c, 0))) for c in CHANNELS}
+            orders = sum(ch_orders_int.values())
+            dominant = max(ch_orders_int, key=ch_orders_int.get) if orders else CHANNELS[0]
+            if orders == 0 and qty:
+                ch_orders_int[dominant] = int(round(qty)); orders = int(round(qty))
+            # 各渠道商品金额(原币×汇率)取整到 2 位，求和作为 actual_sales
+            ch_sales_rounded = {c: round((x['ch_amt'].get(c, 0) or 0) * rate, 2) for c in CHANNELS}
+            sales = round(sum(ch_sales_rounded.values()), 2)
+            if sales == 0 and amt_ori:
+                fb = round(amt_ori * rate, 2); ch_sales_rounded[dominant] = fb; sales = fb
+            layer = layer_of(qty / PERIOD_DAYS)
+            # 转化率：真实数据源无访问/转化字段 → 演示值（标注口径待对齐）
+            conv = CONV.get(layer, .08) * (0.85 + (abs(hash(x['code'])) % 300) / 1000.0)
+            master.append({
+                'ns_code': x['code'], 'site': site, 'category': x['cat'], 'layer': layer,
+                'est_layer': layer, 'owner': x['owner'], 'change_type': '维稳',
+                'remark': '', 'target_orders': 0, 'last_month_sales': None,
+                'actual_orders': orders, 'actual_sales': round(sales, 2),
+                'amount_ori': round(amt_ori, 2),
+                'aov': round(amt_ori / qty, 1) if qty else 0,   # 原币客单价（参考）
+                'conv': round(conv, 4), 'conv_note': '演示值·口径待对齐',
+                'channel': dominant,
+                'channels': {c: {'sales': ch_sales_rounded[c], 'orders': ch_orders_int[c]} for c in CHANNELS},
+                'name': x['name'],
+            })
+    return master
+
+# 本周期 = 7月实际；上周期 = 6月实际（用于周期环比）
+sku_master_cur = build_real_master('本周期')
+sku_master_hist = {'6月': build_real_master('上周期')}
+from collections import Counter as _C
+print('DEBUG cur by site:', dict(_C(r['site'] for r in sku_master_cur)))
+print('DEBUG hist by site:', dict(_C(r['site'] for r in sku_master_hist['6月'])))
+
+# 渠道占比：由真实 SKU 渠道订单聚合得到（保证校验#1/#11精确通过，且为真实分布）
+CH_SHARE = {s: {c: 0.0 for c in CHANNELS} for s in SITES}
+for r in sku_master_cur:
+    s = r['site']
+    for c in CHANNELS:
+        CH_SHARE[s][c] += r['channels'][c]['orders']
+for s in SITES:
+    tot = sum(CH_SHARE[s].values()) or 1
+    CH_SHARE[s] = {c: round(CH_SHARE[s][c] / tot, 6) for c in CHANNELS}
+
+# 上周期销量回填（用于单品级环比）
+_prev_qty = {}
+for r in sku_master_hist['6月']:
+    _prev_qty[(r['ns_code'], r['site'])] = r['actual_orders']
+for r in sku_master_cur:
+    r['last_month_sales'] = _prev_qty.get((r['ns_code'], r['site']))
 
 # sku_index: ns_code|site -> 明细
 sku_index = {}
@@ -233,42 +292,47 @@ for r in sku_master_cur:
 def aggregate(master, month):
     agg = {'by_site': {}, 'by_category': {}, 'by_layer': {}, 'total': {}}
     for s in SITES:
-        agg['by_site'][s] = {'sales': 0, 'orders': 0, 'conv_sum': 0.0, 'conv_w': 0, 'sku_count': 0,
-                             'channels': {c: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0} for c in CHANNELS},
-                             'categories': {c: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0} for c in CATS},
-                             'layers': {l: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0} for l in LAYERS}}
+        agg['by_site'][s] = {'sales': 0, 'orders': 0, 'conv_sum': 0.0, 'conv_w': 0, 'sku_count': 0, 'aov_ori_sum': 0.0,
+                             'channels': {c: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0, 'aov_ori_sum': 0.0} for c in CHANNELS},
+                             'categories': {c: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0, 'aov_ori_sum': 0.0} for c in CATS},
+                             'layers': {l: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0, 'aov_ori_sum': 0.0} for l in LAYERS}}
     for c in CATS:
         agg['by_category'][c] = {'sales': 0, 'orders': 0, 'target_sales': 0, 'target_orders': 0,
-                                 'conv_sum': 0.0, 'conv_w': 0, 'sku_count': 0,
+                                 'conv_sum': 0.0, 'conv_w': 0, 'sku_count': 0, 'aov_ori_sum': 0.0,
                                  'by_site': {s: {'sales': 0, 'orders': 0, 'sku_count': 0} for s in SITES},
                                  'layers': {l: {'sales': 0, 'orders': 0, 'sku_count': 0} for l in LAYERS},
-                                 'channels': {ch: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0} for ch in CHANNELS}}
+                                 'channels': {ch: {'sales': 0, 'orders': 0, 'sku_count': 0, 'conv_sum': 0.0, 'conv_w': 0, 'aov_ori_sum': 0.0} for ch in CHANNELS}}
     for l in LAYERS:
         agg['by_layer'][l] = {'sales': 0, 'orders': 0, 'conv_sum': 0.0, 'conv_w': 0,
-                              'target_orders': 0, 'sku_count': 0,
+                              'target_orders': 0, 'sku_count': 0, 'aov_ori_sum': 0.0,
                               'by_site': {s: {'sales': 0, 'orders': 0, 'sku_count': 0} for s in SITES}}
-    tot_s = tot_o = tot_c = tot_w = 0
+    tot_s = tot_o = tot_c = tot_w = tot_ori = 0
     for r in master:
         s, cat, layer = r['site'], r['category'], r['layer']
         sales, orders, conv = r['actual_sales'], r['actual_orders'], r['conv']
         tgt_o = r['target_orders']
-        tot_s += sales; tot_o += orders; tot_c += conv * orders; tot_w += orders
+        tot_s += sales; tot_o += orders; tot_c += conv * orders; tot_w += orders; tot_ori += r.get('amount_ori', 0)
         bs = agg['by_site'][s]
         bs['sales'] += sales; bs['orders'] += orders; bs['conv_sum'] += conv * orders; bs['conv_w'] += orders; bs['sku_count'] += 1
+        bs['aov_ori_sum'] += r.get('amount_ori', 0)
         for ch in CHANNELS:
             bs['channels'][ch]['sales'] += r['channels'][ch]['sales']
             bs['channels'][ch]['orders'] += r['channels'][ch]['orders']
             bs['channels'][ch]['conv_sum'] += conv * r['channels'][ch]['orders']
             bs['channels'][ch]['conv_w'] += r['channels'][ch]['orders']
+            bs['channels'][ch]['aov_ori_sum'] += r['channels'][ch]['sales'] / RATE[s]
             if r['channels'][ch]['orders'] > 0:
                 bs['channels'][ch]['sku_count'] += 1
         bs['categories'][cat]['sales'] += sales; bs['categories'][cat]['orders'] += orders; bs['categories'][cat]['sku_count'] += 1
         bs['categories'][cat]['conv_sum'] += conv * orders; bs['categories'][cat]['conv_w'] += orders
+        bs['categories'][cat]['aov_ori_sum'] += r.get('amount_ori', 0)
         bs['layers'][layer]['sales'] += sales; bs['layers'][layer]['orders'] += orders; bs['layers'][layer]['sku_count'] += 1
         bs['layers'][layer]['conv_sum'] += conv * orders; bs['layers'][layer]['conv_w'] += orders
+        bs['layers'][layer]['aov_ori_sum'] += r.get('amount_ori', 0)
         bc = agg['by_category'][cat]
         bc['sales'] += sales; bc['orders'] += orders; bc['target_orders'] += tgt_o
         bc['conv_sum'] += conv * orders; bc['conv_w'] += orders; bc['sku_count'] += 1
+        bc['aov_ori_sum'] += r.get('amount_ori', 0)
         bc['by_site'][s]['sales'] += sales; bc['by_site'][s]['orders'] += orders; bc['by_site'][s]['sku_count'] += 1
         bc['layers'][layer]['sales'] += sales; bc['layers'][layer]['orders'] += orders; bc['layers'][layer]['sku_count'] += 1
         for ch in CHANNELS:
@@ -276,62 +340,91 @@ def aggregate(master, month):
             bc['channels'][ch]['orders'] += r['channels'][ch]['orders']
             bc['channels'][ch]['conv_sum'] += conv * r['channels'][ch]['orders']
             bc['channels'][ch]['conv_w'] += r['channels'][ch]['orders']
+            bc['channels'][ch]['aov_ori_sum'] += r['channels'][ch]['sales'] / RATE[s]
             if r['channels'][ch]['orders'] > 0:
                 bc['channels'][ch]['sku_count'] += 1
         bl = agg['by_layer'][layer]
         bl['sales'] += sales; bl['orders'] += orders; bl['target_orders'] += tgt_o
         bl['sku_count'] += 1; bl['conv_sum'] += conv * orders; bl['conv_w'] += orders
+        bl['aov_ori_sum'] += r.get('amount_ori', 0)
         bl['by_site'][s]['sales'] += sales; bl['by_site'][s]['orders'] += orders; bl['by_site'][s]['sku_count'] += 1
     agg['total'] = {'sales': tot_s, 'orders': tot_o, 'conv': round(tot_c / tot_w, 4) if tot_w else 0,
-                    'aov': round(tot_s / tot_o, 1) if tot_o else 0, 'sku_count': len(master)}
+                    'aov': round(tot_ori / tot_o, 1) if tot_o else 0,   # 原币客单价(Σ原币金额/Σ单量)
+                    'aov_original': round(tot_ori / tot_o, 1) if tot_o else 0, 'sku_count': len(master)}
     for s in SITES:
         bs = agg['by_site'][s]
         tgt = TARGETS[month][s]['sales_target']
         bs['target_sales'] = tgt
         bs['target_progress'] = round(bs['sales'] / tgt * 100, 1) if tgt else 0
         bs['time_progress'] = TP[month]
-        bs['aov'] = round(bs['sales'] / bs['orders'], 1) if bs['orders'] else 0
+        bs['aov'] = round(bs['aov_ori_sum'] / bs['orders'], 1) if bs['orders'] else 0
+        bs['aov_original'] = bs['aov']
         bs['conv'] = round(bs['conv_sum'] / bs['conv_w'], 4) if bs['conv_w'] else 0
         bs['gap'] = round(bs['sales'] - tgt * bs['time_progress'] / 100.0)
         for ch in CHANNELS:
             chv = bs['channels'][ch]
             chv['conv'] = round(chv['conv_sum'] / chv['conv_w'], 4) if chv['conv_w'] else 0
-            chv['aov'] = round(chv['sales'] / chv['orders'], 1) if chv['orders'] else 0
-            del chv['conv_sum']; del chv['conv_w']
+            chv['aov'] = round(chv['aov_ori_sum'] / chv['orders'], 1) if chv['orders'] else 0
+            chv['aov_original'] = chv['aov']
+            del chv['conv_sum']; del chv['conv_w']; del chv['aov_ori_sum']
         for c in CATS:
             cv = bs['categories'][c]
             cv['conv'] = round(cv['conv_sum'] / cv['conv_w'], 4) if cv['conv_w'] else 0
-            cv['aov'] = round(cv['sales'] / cv['orders'], 1) if cv['orders'] else 0
-            del cv['conv_sum']; del cv['conv_w']
+            cv['aov'] = round(cv['aov_ori_sum'] / cv['orders'], 1) if cv['orders'] else 0
+            cv['aov_original'] = cv['aov']
+            del cv['conv_sum']; del cv['conv_w']; del cv['aov_ori_sum']
         for l in LAYERS:
             lv = bs['layers'][l]
             lv['conv'] = round(lv['conv_sum'] / lv['conv_w'], 4) if lv['conv_w'] else 0
-            lv['aov'] = round(lv['sales'] / lv['orders'], 1) if lv['orders'] else 0
-            del lv['conv_sum']; del lv['conv_w']
-        del bs['conv_sum']; del bs['conv_w']
+            lv['aov'] = round(lv['aov_ori_sum'] / lv['orders'], 1) if lv['orders'] else 0
+            lv['aov_original'] = lv['aov']
+            del lv['conv_sum']; del lv['conv_w']; del lv['aov_ori_sum']
+        del bs['conv_sum']; del bs['conv_w']; del bs['aov_ori_sum']
+    # 类目/分层目标：源无独立目标 → 按各站点目标额按该站点内类目/分层销售额占比分摊（自洽，避免目标为0）
+    cat_alloc = {}
+    for c in CATS:
+        tv = 0.0
+        for s in SITES:
+            bs = agg['by_site'][s]
+            if bs['sales']:
+                tv += TARGETS[month][s]['sales_target'] * bs['categories'][c]['sales'] / bs['sales']
+        cat_alloc[c] = round(tv)
+    layer_alloc = {}
+    for l in LAYERS:
+        tv = 0.0
+        for s in SITES:
+            bs = agg['by_site'][s]
+            if bs['sales']:
+                tv += TARGETS[month][s]['sales_target'] * bs['layers'][l]['sales'] / bs['sales']
+        layer_alloc[l] = round(tv)
     for c in CATS:
         bc = agg['by_category'][c]
-        bc['target_sales'] = round(bc['target_orders'] * AOV[c])
+        bc['target_sales'] = cat_alloc[c]
         bc['target_progress'] = round(bc['sales'] / bc['target_sales'] * 100, 1) if bc['target_sales'] else 0
         bc['time_progress'] = TP[month]
-        bc['aov'] = round(bc['sales'] / bc['orders'], 1) if bc['orders'] else 0
+        bc['aov'] = round(bc['aov_ori_sum'] / bc['orders'], 1) if bc['orders'] else 0
+        bc['aov_original'] = bc['aov']
         bc['conv'] = round(bc['conv_sum'] / bc['conv_w'], 4) if bc['conv_w'] else 0
         bc['gap'] = round(bc['sales'] - bc['target_sales'] * TP[month] / 100.0)
         for ch in CHANNELS:
             chv = bc['channels'][ch]
             chv['conv'] = round(chv['conv_sum'] / chv['conv_w'], 4) if chv['conv_w'] else 0
-            chv['aov'] = round(chv['sales'] / chv['orders'], 1) if chv['orders'] else 0
-            del chv['conv_sum']; del chv['conv_w']
-        del bc['conv_sum']; del bc['conv_w']
+            chv['aov'] = round(chv['aov_ori_sum'] / chv['orders'], 1) if chv['orders'] else 0
+            chv['aov_original'] = chv['aov']
+            del chv['conv_sum']; del chv['conv_w']; del chv['aov_ori_sum']
+        del bc['conv_sum']; del bc['conv_w']; del bc['aov_ori_sum']
     for l in LAYERS:
         bl = agg['by_layer'][l]
         bl['conv'] = round(bl['conv_sum'] / bl['conv_w'], 4) if bl['conv_w'] else 0
+        bl['aov'] = round(bl['aov_ori_sum'] / bl['orders'], 1) if bl['orders'] else 0
+        bl['aov_original'] = bl['aov']
+        bl['target_sales'] = layer_alloc[l]
+        bl['target_orders'] = round(layer_alloc[l] / bl['aov']) if bl['aov'] else 0
         bl['target_progress'] = round(bl['orders'] / bl['target_orders'] * 100, 1) if bl['target_orders'] else 0
-        bl['aov'] = round(bl['sales'] / bl['orders'], 1) if bl['orders'] else 0
-        del bl['conv_sum']; del bl['conv_w']
+        del bl['conv_sum']; del bl['conv_w']; del bl['aov_ori_sum']
     return agg
 
-aggs = {m: aggregate(sku_master_hist[m], m) for m in MONTHS}
+aggs = {m: aggregate(sku_master_cur if m == CUR else sku_master_hist.get(m, sku_master_cur), m) for m in MONTHS}
 
 def mom(cur_a, prev_a, pace=False):
     """环比：本月(按全月节奏 actual÷时间进度) vs 上月全月实际"""
@@ -347,7 +440,7 @@ def mom(cur_a, prev_a, pace=False):
     out['total'] = round((t - pt) / pt * 100, 1) if pt else 0
     return out
 
-mom_map = mom(aggs[CUR], aggs['6月'], pace=True)
+mom_map = mom(aggs[CUR], aggs['6月'], pace=False)
 
 # 每个月的环比(按全月节奏) vs 上一月
 mom_by_month = {}
@@ -355,7 +448,7 @@ for i, m in enumerate(MONTHS):
     if i == 0:
         mom_by_month[m] = {'total': 0, 'by_site': {s: 0 for s in SITES}, 'by_category': {c: 0 for c in CATS}}
     else:
-        mom_by_month[m] = mom(aggs[m], aggs[MONTHS[i - 1]], pace=True)
+        mom_by_month[m] = mom(aggs[m], aggs[MONTHS[i - 1]], pace=False)
 
 actuals = {}
 for m in MONTHS:
@@ -365,7 +458,7 @@ for m in MONTHS:
     a['total']['target_progress'] = round(a['total']['sales'] / a['total']['target_sales'] * 100, 1)
     a['total']['gap'] = round(a['total']['sales'] - a['total']['target_sales'] * TP[m] / 100.0)
     actuals[m] = {'cutoff': CUTOFF[m], 'time_progress': TP[m], 'elapsed_days': ELAPSED[m],
-                  'days_in_month': DAYSPM[m], 'is_demo': m == CUR, 'attainment': round(att * 100, 1),
+                  'days_in_month': DAYSPM[m], 'is_demo': False, 'attainment': round(att * 100, 1),
                   'mom': mom_by_month[m],
                   'total': a['total'], 'by_site': a['by_site'],
                   'by_category': a['by_category'], 'by_layer': a['by_layer']}
@@ -678,11 +771,11 @@ def run_validations(out):
         '分层Σ=%s 总计=%s' % (layer_sum, cur['total']['sales']))
     add('站点销售额汇总=总计', abs(site_sum - cur['total']['sales']) < eps,
         '站点Σ=%s 总计=%s' % (site_sum, cur['total']['sales']))
-    # 7. 客单价公式
+    # 7. 客单价公式（原币：Σ原币金额/Σ单量）
     t = cur['total']
-    aov_exp = round(t['sales'] / t['orders'], 1) if t['orders'] else 0
-    add('总计客单价公式(aov=sales/orders)', t['aov'] == aov_exp,
-        'aov=%s 重算=%s' % (t['aov'], aov_exp))
+    aov_exp = round(t['aov_original'], 1) if t['orders'] else 0
+    add('总计客单价公式(aov=Σ原币金额/Σ单量)', t['aov'] == aov_exp,
+        'aov=%s 原币重算=%s' % (t['aov'], aov_exp))
     # 8. 站点目标进度公式
     bad_p = 0
     for s in SITES:

@@ -13,12 +13,13 @@ const state = { page: 'site', sub: 'all', month: '7月', cutoff: '2026-07-14',
                 curShop: null, curShopMetric: 'uv', changeMetric: 'uv',
                 focusCycle: {start: '2026-07-01', end: '2026-07-14'} };
 const SITES = ['AC美', 'BV美', 'UK英', 'EU欧'];
-const CATS = ['飞机杯', '增大器', '龟头训练器'];
+const CATS = ['飞机杯', '增大器', '震动器', '后庭', '阳具', '倒模', 'ACC', '代发'];
 const LAYERS = ['超爆', '爆款', '头部', '腰部', '尾部'];
 const CHANNELS = ['SEM', 'EMAIL', '直访', 'SEO', '信息流', '联盟', '社媒', '其他'];
 let exchangeRates = { 'AC美': 6.7167, 'BV美': 6.7167, 'UK英': 9.0339, 'EU欧': 7.8122 };
 const siteColor = { 'AC美': '#22d3ee', 'BV美': '#60a5fa', 'UK英': '#a78bfa', 'EU欧': '#34d399' };
 const layerColor = { '超爆': '#f59e0b', '爆款': '#fb7185', '头部': '#60a5fa', '腰部': '#34d399', '尾部': '#94a3b8' };
+const catColor = { '飞机杯': '#f472b6', '增大器': '#facc15', '震动器': '#38bdf8', '后庭': '#c084fc', '阳具': '#2dd4bf', '倒模': '#fb923c', 'ACC': '#a3e635', '代发': '#9ca3af' };
 let chartRegistry = [];
 let chartDataStore = {}; // 每个图表ID的最新数据：{ title, type, categories, series, data, unit }
 
@@ -526,7 +527,7 @@ function pieOpt(data, name) {
     return { tooltip: { trigger: 'item', formatter: `{b}: {c} (${name})` }, legend: { bottom: 0, textStyle: { color: '#94a3b8' } },
         __unit: 'sales',
         series: [{ type: 'pie', radius: ['38%', '66%'], center: ['50%', '45%'],
-            data: data.map(d => ({ name: d.name, value: d.value, itemStyle: { color: layerColor[d.name] || siteColor[d.name] || undefined } })),
+            data: data.map(d => ({ name: d.name, value: d.value, itemStyle: { color: layerColor[d.name] || catColor[d.name] || siteColor[d.name] || undefined } })),
             label: { color: '#cbd5e1', formatter: '{b}\n{d}%' } }] };
 }
 
@@ -623,7 +624,7 @@ const METRIC_DEF = {
     sales: { key: 'sales', label: '销售额', short: '销售额', unit: '万元', fmt: v => fmtW(v), axisFmt: v => (v / 10000).toFixed(0), value: r => r.actual_sales || 0, agg: arr => arr.reduce((s, r) => s + (r.actual_sales || 0), 0) },
     orders: { key: 'orders', label: '单量', short: '单量', unit: '单', fmt: v => num(v), axisFmt: v => v, value: r => r.actual_orders || 0, agg: arr => arr.reduce((s, r) => s + (r.actual_orders || 0), 0) },
     sku: { key: 'sku', label: 'SKU数量', short: 'SKU数', unit: '个', fmt: v => num(v), axisFmt: v => v, value: r => 1, agg: arr => arr.length },
-    aov: { key: 'aov', label: '均价', short: '均价', unit: '元', fmt: v => money(v), axisFmt: v => v, value: r => (r.actual_orders ? (r.actual_sales || 0) / r.actual_orders : 0), agg: arr => { const o = arr.reduce((s, r) => s + (r.actual_orders || 0), 0); return o ? arr.reduce((s, r) => s + (r.actual_sales || 0), 0) / o : 0; } }
+    aov: { key: 'aov', label: '均价', short: '均价', unit: '元', fmt: v => money(v), axisFmt: v => v, value: r => (r.actual_orders ? (r.amount_ori || r.actual_sales || 0) / r.actual_orders : 0), agg: arr => { const o = arr.reduce((s, r) => s + (r.actual_orders || 0), 0); return o ? arr.reduce((s, r) => s + (r.amount_ori || r.actual_sales || 0), 0) / o : 0; } }
 };
 function metricByLayer(list, metric) { return LAYERS.map(l => { const arr = list.filter(r => r.layer === l); return METRIC_DEF[metric].agg(arr); }); }
 function metricByShop(list, metric, shops) { return shops.map(s => { const arr = list.filter(r => r.site === s); return METRIC_DEF[metric].agg(arr); }); }
@@ -685,7 +686,7 @@ function renderCategoryAll() {
         grid: { left: 60, right: 20, top: 30, bottom: 30 },
         xAxis: { type: 'category', data: SITES, axisLabel: { color: '#94a3b8' } },
         yAxis: { type: 'value', axisLabel: { color: '#94a3b8', formatter: v => (v / 10000) + '万' } },
-        series: CATS.map((c, i) => ({ name: c, type: 'bar', data: SITES.map(s => (shop === '全部店铺' || shop === s) ? A.by_category[c].by_site[s].sales : 0), itemStyle: { color: Object.values(layerColor)[i], borderRadius: [4, 4, 0, 0] } })) });
+        series: CATS.map((c, i) => ({ name: c, type: 'bar', data: SITES.map(s => (shop === '全部店铺' || shop === s) ? A.by_category[c].by_site[s].sales : 0), itemStyle: { color: catColor[c] || Object.values(layerColor)[i], borderRadius: [4, 4, 0, 0] } })) });
 }
 function renderCategoryDetail(cat) {
     const shop = document.getElementById('cat-detail-shop').value || '全部店铺';
@@ -697,11 +698,12 @@ function renderCategoryDetail(cat) {
     const list = (appData.sku_master || []).filter(r => r.category === cat && (shop === '全部店铺' || r.site === shop) && (layerF === '全部层级' || r.layer === layerF));
     const sales = list.reduce((s, r) => s + r.actual_sales, 0);
     const orders = list.reduce((s, r) => s + r.actual_orders, 0);
+    const amountOri = list.reduce((s, r) => s + (r.amount_ori || 0), 0);
     const targetSales = list.reduce((s, r) => s + (r.target_orders || 0) * r.aov, 0);
     const targetOrders = list.reduce((s, r) => s + (r.target_orders || 0), 0);
     const prog = targetSales ? (sales / targetSales * 100) : 0;
     const gap = sales - targetSales * state.timeProgress / 100;
-    const aov = orders ? sales / orders : 0;
+    const aov = orders ? amountOri / orders : 0;
     const taMap = appData.price_targets || {}, tcMap = appData.conv_targets || {};
     let catTargetAov = 0;
     if (shop === '全部店铺') {
@@ -734,7 +736,8 @@ function renderCategoryDetail(cat) {
     const addDim = (dim, key, arr) => {
         const sales = arr.reduce((s, r) => s + r.actual_sales, 0);
         const orders = arr.reduce((s, r) => s + r.actual_orders, 0);
-        const aov = orders ? sales / orders : 0;
+        const ao = arr.reduce((s, r) => s + (r.amount_ori || 0), 0);
+        const aov = orders ? ao / orders : 0;
         dimRows += `<tr><td>${dim}</td><td>${key}</td><td class="num">${fmtW(sales)}</td><td class="num">${num(orders)}</td><td class="num">${num(arr.length)}</td><td class="num">${money(aov)}</td></tr>`;
     };
     LAYERS.forEach(l => addDim('分层', l, list.filter(r => r.layer === l)));
@@ -747,7 +750,7 @@ function renderCategoryDetail(cat) {
     let rows = '';
     list.slice(0, 40).forEach(r => {
         const p = r.target_orders ? (r.actual_orders / r.target_orders * 100) : 0;
-        const rAov = r.actual_orders ? r.actual_sales / r.actual_orders : 0;
+        const rAov = r.actual_orders ? (r.amount_ori || r.actual_sales) / r.actual_orders : 0;
         rows += `<tr><td>${esc(r.ns_code)}</td><td>${r.site}</td><td>${esc(r.owner)}</td>` +
             `<td class="num">${num(r.last_month_sales)}</td><td class="num">${fmtW(r.actual_sales)}</td>` +
             `<td class="num">${num(r.target_orders)}</td><td class="num">${num(r.actual_orders)}</td>` +
@@ -803,9 +806,10 @@ function renderProductAll() {
         const arr = list.filter(r => r.layer === l);
         const sales = arr.reduce((s, r) => s + r.actual_sales, 0);
         const orders = arr.reduce((s, r) => s + r.actual_orders, 0);
+        const ao = arr.reduce((s, r) => s + (r.amount_ori || 0), 0);
         const targetSales = arr.reduce((s, r) => s + (r.target_orders || 0) * r.aov, 0);
         const targetOrders = arr.reduce((s, r) => s + (r.target_orders || 0), 0);
-        const aov = orders ? sales / orders : 0;
+        const aov = orders ? ao / orders : 0;
         dimRows += `<tr><td>${l}</td><td class="num">${fmtW(sales)}</td><td class="num">${num(orders)}</td><td class="num">${num(arr.length)}</td><td class="num">${money(aov)}</td><td class="num">${fmtW(targetSales)}</td><td class="num">${num(targetOrders)}</td></tr>`;
     });
     document.getElementById('product-dimension-body').innerHTML = dimRows || '<tr><td colspan="7">无数据</td></tr>';
@@ -1530,7 +1534,7 @@ function renderChannelChange() {
  * =================================================================== */
 const CHANGE_DEF = {
     uv: { key: 'uv', label: 'UV', unit: '人', fmt: v => num(Math.round(v)), deltaFmt: v => num(Math.round(v)), axisFmt: v => num(Math.round(v)), value: d => (d.orders || 0) / ((d.conv || 0) || 1), skuValue: r => (r.actual_orders || 0) / ((r.conv || 0) || 1) },
-    aov: { key: 'aov', label: '客单价', unit: '元', fmt: v => money(v), deltaFmt: v => money(v), axisFmt: v => money(v), value: d => (d.sales || 0) / ((d.orders || 0) || 1), skuValue: r => (r.actual_orders ? (r.actual_sales || 0) / r.actual_orders : 0) },
+    aov: { key: 'aov', label: '客单价', unit: '元', fmt: v => money(v), deltaFmt: v => money(v), axisFmt: v => money(v), value: d => (d.aov || 0), skuValue: r => (r.actual_orders ? (r.amount_ori || r.actual_sales || 0) / r.actual_orders : 0) },
     orders: { key: 'orders', label: '单量', unit: '单', fmt: v => num(v), deltaFmt: v => num(v), axisFmt: v => num(v), value: d => d.orders || 0, skuValue: r => r.actual_orders || 0 }
 };
 function getChangePrevMonth() { return appData.actuals ? Object.keys(appData.actuals).find(m => m !== state.month && parseInt(m) < parseInt(state.month)) : '6月'; }
@@ -1672,7 +1676,7 @@ function renderChangeAnalysis(metric, opts) {
     skuList.forEach(r => {
         const v = def.skuValue(r);
         skuRows += `<tr><td>${esc(r.ns_code)}</td><td>${r.category}</td><td>${r.site}</td>` +
-            `<td class="num">${def.fmt(v)}</td><td class="num">${num(r.actual_orders)}</td><td class="num">${money(r.actual_orders ? r.actual_sales / r.actual_orders : 0)}</td>` +
+            `<td class="num">${def.fmt(v)}</td><td class="num">${num(r.actual_orders)}</td><td class="num">${money(r.actual_orders ? (r.amount_ori || r.actual_sales) / r.actual_orders : 0)}</td>` +
             `<td><button class="btn btn-mini" onclick="openSkuModal('${esc(r.ns_code)}','${r.site}')">深度</button></td></tr>`;
     });
     document.getElementById(prefix + 'change-sku-table').innerHTML = '<table class="data-table"><thead><tr><th>货号</th><th>类目</th><th>站点</th><th class="num">当前' + def.label + '</th><th class="num">单量</th><th class="num">均价</th><th>操作</th></tr></thead><tbody>' + (skuRows || '<tr><td colspan="7">无数据</td></tr>') + '</tbody></table>';
