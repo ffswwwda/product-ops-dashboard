@@ -242,9 +242,6 @@ def build_real_master(period):
 # 本周期 = 7月实际；上周期 = 6月实际（用于周期环比）
 sku_master_cur = build_real_master('本周期')
 sku_master_hist = {'6月': build_real_master('上周期')}
-from collections import Counter as _C
-print('DEBUG cur by site:', dict(_C(r['site'] for r in sku_master_cur)))
-print('DEBUG hist by site:', dict(_C(r['site'] for r in sku_master_hist['6月'])))
 
 # 渠道占比：由真实 SKU 渠道订单聚合得到（保证校验#1/#11精确通过，且为真实分布）
 CH_SHARE = {s: {c: 0.0 for c in CHANNELS} for s in SITES}
@@ -690,53 +687,105 @@ def build_sku_period():
 
 # ---------- 真实 OGSM（7月，飞机杯）----------
 def build_ogsm_july():
-    """解析商品部真实 OGSM CSV（data/ogsm_july_raw.csv）为结构化数据。
-    表头：板块/目的/目标/策略/衡量/计划/落地店铺/责任人 + 每周块(完成情况D/状态/检查C/下一步计划)。
-    板块/目的为空时向上沿用上一行。"""
-    import csv as _csv
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'ogsm_july_raw.csv')
-    if not os.path.exists(path):
+    """从真实数据源 Excel（站点目标/产品定位）构建 7月 OGSM。
+    本源为量化目标骨干：站点销售额目标、客单价目标、产品结构目标。
+    不含策略/行动 prose（源未提供）；策略文本可在前端 OGSM 配置卡补充，
+    或后续从飞书 OGSM 表导出 CSV 并入。"""
+    try:
+        wb = _wb()
+    except Exception:
         return None
-    rows = list(_csv.reader(open(path, encoding='utf-8-sig', newline='')))
-    if len(rows) < 3:
-        return None
-    header = rows[0]
-    # 周块：从 col8 起，每 4 列一个（D/状态/检查/下一步）
-    week_labels = []
-    c = 8
-    while c < len(header) and header[c].strip():
-        week_labels.append(header[c].strip())
-        c += 4
-    out_rows = []
-    cur_board = ''
-    cur_obj = ''
-    for row in rows[2:]:
-        if not any(cell.strip() for cell in row[:8]):
+    # 站点目标
+    ws = wb['站点目标']
+    site_targets = {}
+    for r in range(2, ws.max_row + 1):
+        site = ws.cell(r, 1).value
+        if not site:
             continue
-        board = (row[0].strip() or cur_board)
-        obj = (row[1].strip() or cur_obj)
-        cur_board = board or cur_board
-        cur_obj = obj or cur_obj
-        weeks = []
-        for i, wl in enumerate(week_labels):
-            b = 8 + i * 4
-            weeks.append({
-                'label': wl,
-                'D': row[b].strip() if b < len(row) else '',
-                'status': row[b + 1].strip() if b + 1 < len(row) else '',
-                'check': row[b + 2].strip() if b + 2 < len(row) else '',
-                'next': row[b + 3].strip() if b + 3 < len(row) else '',
-            })
-        out_rows.append({
-            '板块': board, '目的': obj,
-            '目标': row[2].strip(), '策略': row[3].strip(),
-            '衡量': row[4].strip(), '计划': row[5].strip(),
-            '落地店铺': row[6].strip(), '责任人': row[7].strip(),
-            'weeks': weeks,
+        site = str(site).strip()
+        if site not in SITES:
+            continue
+        site_targets[site] = {
+            'sales': float(ws.cell(r, 2).value or 0),
+            'aov': float(ws.cell(r, 3).value or 0),
+            'rate': float(ws.cell(r, 4).value or 0),
+        }
+    # 产品定位（结构门槛）
+    wp = wb['产品定位']
+    layers = []
+    for r in range(2, wp.max_row + 1):
+        struct = wp.cell(r, 1).value
+        if not struct:
+            continue
+        layers.append({
+            'name': str(struct).strip(),
+            'month': str(wp.cell(r, 2).value or '').strip(),
+            'daily': str(wp.cell(r, 3).value or '').strip(),
         })
-    return {'meta': {'month': '2026年7月', 'source': '商品部 26年-7月OGSM - 飞机杯',
-                     'weeks': week_labels},
-            'rows': out_rows}
+    # 各站点 运营负责人（取本周期实际 SKU 中出现最多的）
+    site_owner = {}
+    for s in SITES:
+        cnt = {}
+        for x in read_site_sheet(s, '本周期'):
+            o = (x.get('owner') or '').strip()
+            if o:
+                cnt[o] = cnt.get(o, 0) + 1
+        site_owner[s] = max(cnt, key=cnt.get) if cnt else '—'
+    shop_map = {'AC美': 'AC-US', 'BV美': 'BV-US', 'UK英': 'BV-UK', 'EU欧': 'EU'}
+    total_target = sum(site_targets[s]['sales'] for s in SITES)
+    rows = []
+    # 总目标
+    rows.append({
+        '板块': '全站', '目的': '完成 7月 整体销售目标',
+        '目标': '目标：%d' % int(round(total_target)),
+        '策略': '—（源未含策略文本，可在 OGSM 配置卡补充）',
+        '衡量': '销售额(人民币)', '计划': '按时间进度 %s%% 推进' % TP[CUR],
+        '落地店铺': '全站', '责任人': site_owner.get('EU欧', '刘玉辉'),
+        'weeks': [],
+    })
+    # 各站点销售额目标
+    for s in SITES:
+        t = site_targets.get(s, {'sales': 0, 'aov': 0})
+        rows.append({
+            '板块': s, '目的': '达成 %s 7月 销售额目标' % s,
+            '目标': '目标：%d' % int(round(t['sales'])),
+            '策略': '—（源未含策略文本）',
+            '衡量': '销售额(人民币)',
+            '计划': '客单价目标(原币) %s；按时间进度 %s%% 推进' % (t['aov'], TP[CUR]),
+            '落地店铺': shop_map.get(s, '全站'), '责任人': site_owner.get(s, '—'),
+            'weeks': [],
+        })
+    # 客单价目标（定性展示，前端解析器不量化 aov）
+    for s in SITES:
+        t = site_targets.get(s, {'aov': 0})
+        rows.append({
+            '板块': s, '目的': '达成 %s 客单价目标' % s,
+            '目标': '原币客单价目标 %s' % t['aov'],
+            '策略': '—（源未含策略文本）',
+            '衡量': '客单价(原币)', '计划': '稳定客单价水平',
+            '落地店铺': shop_map.get(s, '全站'), '责任人': site_owner.get(s, '—'),
+            'weeks': [],
+        })
+    # 产品结构目标（定性）
+    layer_txt = '；'.join('%s 整月销量%s / 日均%s' % (l['name'], l['month'], l['daily']) for l in layers)
+    rows.append({
+        '板块': '产品结构', '目的': '达成产品结构目标（提升超爆/爆款/头部占比）',
+        '目标': layer_txt,
+        '策略': '—（源未含策略文本）',
+        '衡量': 'SKU 分层数量', '计划': '推动腰部/尾部向头部迁移',
+        '落地店铺': '全站', '责任人': '—',
+        'weeks': [],
+    })
+    return {
+        'meta': {
+            'month': '2026年7月',
+            'source': '7月飞机杯复盘数据源.xlsx（站点目标 / 产品定位）',
+            'weeks': [],
+            'note': '本源含量化目标（站点销售额 / 客单价 / 产品结构），不含策略/行动 prose；'
+                    '策略文本可在 OGSM 配置卡补充，或从飞书 OGSM 表导出 CSV 并入。',
+        },
+        'rows': rows,
+    }
 
 
 def run_validations(out):

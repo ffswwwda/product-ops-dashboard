@@ -1967,7 +1967,7 @@ function buildOgsmCheck(row, data) {
         const chParts = CHANNELS.map(ch => { const v = (d.channels || {})[ch] || {}; return ch + fmtW(v.sales || 0) + '(' + (v.sales / tot * 100).toFixed(1) + '%)'; }).filter(x => !x.includes('(0.0%)'));
         if (chParts.length) parts.push('按渠道：' + chParts.join('、') + '；占比偏低渠道需优化素材与出价。');
     }
-    parts.push('实际值口径：站点/类目汇总为合成值（周期CSV仅用于单品周期监控），故进度为合成口径，待真实周期数据对齐规模后替换。');
+    parts.push('实际值口径：站点/类目汇总为真实 7月本周期数据（来自《7月飞机杯复盘数据源.xlsx》），进度为真实口径。');
     return parts.join(' ') + ' 建议：聚焦滞后维度，加大投放/优化转化，确保全月目标达成。';
 }
 function autoFillWeeklyReview() {
@@ -1986,7 +1986,7 @@ function renderWeeklyReview() {
     const o = appData.ogsm_july;
     const box = document.getElementById('ogsms-report');
     if (!o || !o.rows || !o.rows.length) {
-        box.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">暂无真实OGSM数据</div><div class="empty-state-desc">需将「商品部 26年-7月OGSM」CSV 放入 data/ 目录后重新生成</div></div>';
+        box.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">暂无真实OGSM数据</div><div class="empty-state-desc">需将《7月飞机杯复盘数据源.xlsx》接入 build_data.py 后重新生成（当前源为量化目标：站点销售额/客单价/产品结构）</div></div>';
         return;
     }
     const saved = JSON.parse(localStorage.getItem('ogsm_' + state.month + '_' + week) || '{}');
@@ -2070,7 +2070,7 @@ function renderOgsmReal() {
     const o = appData.ogsm_july;
     const box = document.getElementById('ogsms-real');
     if (!o || !o.rows || !o.rows.length) {
-        box.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">暂无真实OGSM数据</div><div class="empty-state-desc">需将「商品部 26年-7月OGSM」CSV 放入 data/ 目录后重新生成</div></div>';
+        box.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">暂无真实OGSM数据</div><div class="empty-state-desc">需将《7月飞机杯复盘数据源.xlsx》接入 build_data.py 后重新生成（当前源为量化目标：站点销售额/客单价/产品结构）</div></div>';
         return;
     }
     const meta = document.getElementById('ogsms-real-meta');
@@ -2443,7 +2443,7 @@ const DERIVATIONS = {
     title: 'OGSM 周复盘', badge: 'mixed', method: 'combined',
     source: '目标/计划/周进度：真实OGSM CSV（data/ogsm_july_raw.csv，真源）-> build_data.py -> data.json -> 前端直显。完成进度/检查项：前端据真实OGSM逐行解析目标值，结合预聚合actuals计算（actuals当前为合成值，待真实周期数据对齐规模后替换）。',
     metrics: [
-      { n: '真实OGSM 56行', m: 'source', f: 'CSV->build_data.py->data.json->前端直显（无计算）' },
+      { n: '真实OGSM（站点目标/产品定位）', m: 'source', f: 'Excel(7月飞机杯复盘数据源.xlsx)->build_data.py->data.json->前端直显（无计算）' },
       { n: '状态颜色', m: 'frontend', f: '文本->颜色映射(滞后红/超前绿/正常青/未开始黄)' },
       { n: '生成-解析目标', m: 'frontend', f: 'parseOgsmRow: 从目标/衡量正则提取指标(销售额/单量/转化率)+数值+类目+店铺' },
       { n: '生成-完成进度', m: 'frontend', f: 'computeOgsmFromRow: actual/target x 100（actual取自站点×类目交叉汇总）' },
@@ -2451,7 +2451,7 @@ const DERIVATIONS = {
       { n: '生成-检查(交叉分析)', m: 'frontend', f: 'buildOgsmCheck: 按站点/类目/分层/渠道交叉拆解缺口' },
       { n: 'D/检查填写', m: 'source', f: '系统生成预填->用户可编辑->localStorage' }
     ],
-    note: '生成周复盘现已「驱动真实7月OGSM」：每行目标来自真实计划，进度/检查由前端实时计算。注意：actuals(站点/类目汇总)当前为合成值，进度为合成口径；周期CSV仅用于单品周期监控（真值）。',
+    note: '生成周复盘现已「驱动真实7月OGSM」：每行目标来自《7月飞机杯复盘数据源.xlsx》（站点目标/产品定位），进度/检查由前端实时计算（actuals 为真实本周期数据）。源为量化目标，不含策略/行动 prose，可在 OGSM 配置卡补充。',
     code: 'build_data.py::build_ogsm_july；app.js::parseOgsmRow / computeOgsmFromRow / buildOgsmCheck / renderWeeklyReview'
   },
   'review|monthly': {
