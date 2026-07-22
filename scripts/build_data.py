@@ -864,6 +864,31 @@ def run_validations(out):
     return {'passed': passed, 'total': total, 'checks': checks,
             'generated_at': datetime.date.today().isoformat(), 'all_pass': passed == total}
 
+# ---------- 指标来源公式（供前端「数据核对」页逐项展示真实计算来源）----------
+METRIC_FORMULAS = {
+    'sales': {'name': '销售额', 'unit': '人民币元',
+              'formula': 'Σ actual_sales —— 各SKU实际销售额之和；actual_sales = Σ各渠道商品金额(原币)×汇率',
+              'source': '原始字段 sku_master[].actual_sales'},
+    'orders': {'name': '订单量', 'unit': '单',
+               'formula': 'Σ actual_orders —— 各SKU实际订单量之和；= Σ各渠道订单',
+               'source': '原始字段 sku_master[].actual_orders'},
+    'aov_original': {'name': '客单价(原币)', 'unit': '原币',
+                     'formula': 'Σ amount_ori ÷ Σ actual_orders —— 原币客单价（与原币目标同币种）',
+                     'source': '原始字段 sku_master[].amount_ori、actual_orders'},
+    'conv': {'name': '转化率', 'unit': '%',
+             'formula': 'Σ(conv×orders) ÷ Σ orders —— 订单量加权平均转化率',
+             'source': '原始字段 sku_master[].conv、actual_orders'},
+    'sku_count': {'name': 'SKU数', 'unit': '个',
+                  'formula': 'COUNT(sku_master 行) —— 当前板块命中的SKU数量',
+                  'source': '原始：sku_master 行数（按板块过滤）'},
+    'target_sales': {'name': '销售目标', 'unit': '人民币元',
+                     'formula': '来源：Excel《站点目标》。站点板块=该站点目标；全站=四站点求和；类目/分层=按「站点目标×站点内该类目/层销售额占比」分摊',
+                     'source': 'Excel《站点目标》+ 销售额占比分摊规则'},
+    'target_progress': {'name': '目标进度', 'unit': '%',
+                        'formula': '实际销售额 ÷ 目标销售额 × 100',
+                        'source': '由 sales 与 target_sales 计算'},
+}
+
 out = {
     'month_meta': {'current_month': CUR, 'current_month_label': '2026年' + CUR,
                    'today': CUTOFF[CUR], 'cutoff': CUTOFF[CUR],
@@ -876,6 +901,7 @@ out = {
     'key_products': prev.get('key_products', []),
     'ogsm_config': build_ogsm_config(CUR),
     'ogsm_july': build_ogsm_july(),
+    'formulas': METRIC_FORMULAS,
     'strategies': prev.get('strategies', []), 'records': prev.get('records', []),
     'price_targets': PC['price_targets'], 'conv_targets': PC['conv_targets'], 'struct_targets': prev.get('struct_targets', {}),
     'stats': prev.get('stats', {}),

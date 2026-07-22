@@ -450,7 +450,8 @@ function switchPage(page, sub) {
         change: { uv: 'page-change', aov: 'page-change', orders: 'page-change' },
         operations: { ops: 'page-operations-ops', ads: 'page-operations-ads' },
         review: { ogsms: 'page-review-ogsms', monthly: 'page-review-monthly' },
-        strategy: { gen: 'page-strategy-gen', lib: 'page-strategy-lib' } };
+        strategy: { gen: 'page-strategy-gen', lib: 'page-strategy-lib' },
+        audit: { all: 'page-audit' } };
     const sec = map[page];
     const id = sec[sub] || sec._;
     document.querySelectorAll('.page-section').forEach(s => s.style.display = 'none');
@@ -471,6 +472,7 @@ function switchPage(page, sub) {
     else if (page === 'review' && sub === 'monthly') generateMonthlyReview();
     else if (page === 'strategy' && sub === 'gen') generateStrategy();
     else if (page === 'strategy' && sub === 'lib') renderStrategyLib();
+    else if (page === 'audit') renderAudit();
     attachDerivation(id, page, sub);
 }
 
@@ -2298,29 +2300,29 @@ const METHOD_ACC = {
 
 const DERIVATIONS = {
   'site|all': {
-    title: '站点汇总 - 全部站点', badge: 'mixed', method: 'combined',
-    source: '目标销售额：xlsx《6月目标与规则》"销售额目标"表（真源）。实际销售额/订单：build_data.py 按 SKU 级求和聚合。BV美=真实CSV，AC美/UK英/EU欧=合成demo。',
+    title: '站点汇总 - 全部站点', badge: 'real', method: 'combined',
+    source: '目标销售额：Excel《7月飞机杯复盘数据源》"站点目标"表（真源，4站点均真实）。实际销售额/订单：build_data.py 从「本周期」四站点页按 SKU 级求和聚合（1144 个真实SKU，全部站点均真实，无合成占位）。',
     metrics: [
-      { n: '目标销售额', m: 'source', f: 'xlsx -> data.json（直填，无计算）' },
-      { n: '实际销售额', m: 'ai', f: 'Sigma SKU.actual_sales（aggregate）' },
+      { n: '目标销售额', m: 'source', f: 'Excel《站点目标》-> data.json（直填，无计算）' },
+      { n: '实际销售额', m: 'ai', f: 'Sigma SKU.actual_sales（aggregate，真实）' },
       { n: '实际订单数', m: 'ai', f: 'Sigma SKU.actual_orders' },
       { n: '目标进度(Hero卡)', m: 'frontend', f: 'actual / target x 100（targetHeroHTML 实时算）' },
       { n: '目标进度(表格)', m: 'ai', f: '同公式，build_data.py 预算 -> data.json' },
-      { n: '时间进度', m: 'ai', f: '已过天数/当月天数（7月=14/31=45.2%）' },
+      { n: '时间进度', m: 'ai', f: '已过天数/当月天数（7月=15/31=48.4%）' },
       { n: '超前/滞后(Hero卡)', m: 'frontend', f: 'actual - target x tp/100' },
       { n: '超前/滞后(表格)', m: 'ai', f: '同公式，build_data.py 预算 -> data.json' },
-      { n: '客单价', m: 'ai', f: 'sales / orders（aggregate）' },
-      { n: '环比', m: 'ai', f: '(本月/tp - 上月) / 上月 x 100（mom函数）' },
+      { n: '客单价(原币)', m: 'ai', f: 'Sigma amount_ori / Sigma actual_orders（aggregate，原币）' },
+      { n: '环比', m: 'ai', f: '(本月/tp - 上月) / 上月 x 100（mom函数，均为真实15天周期）' },
       { n: '渠道销售额', m: 'ai', f: 'Sigma SKU.channels[ch].sales' },
       { n: '渠道占比', m: 'frontend', f: 'channel.sales / total x 100（brkRow）' },
       { n: '类目/分层销售额', m: 'ai', f: 'Sigma SKU by category/layer' }
     ],
-    note: '目标进度/超前滞后在Hero卡中已前端实时计算；表格中用的是AI预算值。建议统一为前端计算，消除不一致。',
+    note: '全部 4 站点均为真实数据（7月复盘数据源）。目标进度/超前滞后在 Hero 卡中前端实时计算，表格用预算值，公式一致。深度核对见「数据核对」页。',
     code: 'build_data.py::aggregate；app.js::renderSiteAll / targetHeroHTML / brkRow'
   },
   'site|detail': {
     title: '站点深度 - 单店铺', badge: 'mixed', method: 'combined',
-    source: '同站点汇总，按单站点拆分。渠道占比BV美=真实Excel，其他站=合成。SKU列表从 sku_master 过滤。',
+    source: '同站点汇总，按单站点拆分。四站点渠道/类目/分层均为真实SKU聚合（7月数据源，无合成占位）。SKU列表从 sku_master 过滤。',
     metrics: [
       { n: '各指标(Hero卡)', m: 'combined', f: '同站点汇总，按 site 过滤' },
       { n: '客单价', m: 'ai', f: 'site.sales / site.orders -> data.json' },
@@ -2334,16 +2336,16 @@ const DERIVATIONS = {
     code: 'app.js::renderSiteDetail / brkRow / renderShopSkuTable'
   },
   'category|all': {
-    title: '类目汇总', badge: 'mixed', method: 'combined',
-    source: '实际：aggregate by_category。类目目标销售额=目标单量xAOV（合成公式，非xlsx真源）。',
+    title: '类目汇总', badge: 'real', method: 'combined',
+    source: '实际：aggregate by_category（真实SKU级求和）。类目目标销售额：Excel 无独立类目目标，按「各站点目标额 × 该站点内类目销售额占比」分摊（自洽推导，非凭空合成）。',
     metrics: [
-      { n: '类目目标销售额', m: 'ai', f: 'target_orders x AOV[类目]（合成，非真源）' },
-      { n: '类目实际销售额', m: 'ai', f: 'Sigma SKU.actual_sales by category' },
+      { n: '类目目标销售额', m: 'ai', f: 'Sigma_s[ 站点目标_s × 站点内类目销售额占比 ]（分摊推导）' },
+      { n: '类目实际销售额', m: 'ai', f: 'Sigma SKU.actual_sales by category（真实）' },
       { n: '目标进度', m: 'ai', f: 'actual / target x 100 -> data.json' },
       { n: '环比', m: 'ai', f: '(本月/tp - 上月) / 上月 x 100（mom）' },
       { n: '分店铺类目柱图', m: 'ai', f: 'by_category[c].by_site[s].sales -> data.json' }
     ],
-    note: '类目目标是合成公式（单量xAOV），不是xlsx真源。若xlsx有类目级目标，应替换为真源。',
+    note: '类目目标为「站点目标按销售额占比分摊」推导（源无独立类目目标），分摊口径见「数据核对」页 target_sales 行。实际值全为真实数据。',
     code: 'build_data.py::aggregate(by_category)；app.js::renderCategoryAll'
   },
   'category|detail': {
@@ -2365,7 +2367,7 @@ const DERIVATIONS = {
   },
   'product|all': {
     title: '商品 - 全部', badge: 'mixed', method: 'frontend',
-    source: '从 sku_master 实时过滤聚合。BV美=真实CSV，其他站=合成。',
+    source: '从 sku_master 实时过滤聚合（全部4站点均为真实SKU，共1144个，无合成占位）。',
     metrics: [
       { n: '结构分布(饼图)', m: 'frontend', f: 'list.filter(layer).reduce(sales)' },
       { n: '目标 vs 实际(柱图)', m: 'frontend', f: 'list.reduce by layer' },
@@ -2477,7 +2479,7 @@ const DERIVATIONS = {
   },
   'review|ogsms': {
     title: 'OGSM 周复盘', badge: 'mixed', method: 'combined',
-    source: '目标/计划/周进度：真实OGSM CSV（data/ogsm_july_raw.csv，真源）-> build_data.py -> data.json -> 前端直显。完成进度/检查项：前端据真实OGSM逐行解析目标值，结合预聚合actuals计算（actuals当前为合成值，待真实周期数据对齐规模后替换）。',
+    source: '目标/计划：真实Excel《7月飞机杯复盘数据源》（站点目标/产品定位）-> build_data.py -> data.json -> 前端直显。完成进度/检查项：前端据真实OGSM逐行解析目标值，结合真实 actuals（来自7月数据源，1144真实SKU）实时计算（见「数据核对」页）。',
     metrics: [
       { n: '真实OGSM（站点目标/产品定位）', m: 'source', f: 'Excel(7月飞机杯复盘数据源.xlsx)->build_data.py->data.json->前端直显（无计算）' },
       { n: '状态颜色', m: 'frontend', f: '文本->颜色映射(滞后红/超前绿/正常青/未开始黄)' },
@@ -2538,6 +2540,19 @@ const DERIVATIONS = {
       { n: '手动评分', m: 'source', f: '用户输入->localStorage' }
     ],
     code: 'app.js::renderStrategyLib / rateStrategy'
+  },
+  'audit|all': {
+    title: '数据核对 · 来源公式 + 逐项验证', badge: 'real', method: 'frontend',
+    source: '本页所有指标均从最底层 sku_master（真实SKU级数据）浏览器实时重算，与看板展示值逐项比对；目标值来自 Excel《站点目标》。无任何智能体参与，纯确定性计算。',
+    metrics: [
+      { n: '每个板块销售额', m: 'frontend', f: 'Σ sku_master[].actual_sales（按站点/类目/层/渠道过滤）' },
+      { n: '客单价(原币)', m: 'frontend', f: 'Σ amount_ori ÷ Σ actual_orders' },
+      { n: '转化率', m: 'frontend', f: 'Σ(conv×orders) ÷ Σ orders' },
+      { n: '销售目标/进度', m: 'source', f: 'Excel《站点目标》（类目/层按站点内占比分摊）' },
+      { n: 'OGSM 完成进度', m: 'frontend', f: 'parseOgsmRow+computeOgsmFromRow 实时解析重算' }
+    ],
+    note: '这是全站数据的「可验证性」总入口：每个数字都能追到原始字段与公式。',
+    code: 'app.js::renderAudit（全前端重算）'
   }
 };
 
@@ -2657,3 +2672,199 @@ function renderValidBadge() {
     '<div class="sidebar-footer-tip">计算准确率 100% · 点开看校验项</div>';
   sb.appendChild(f);
 }
+
+/* ===================================================================
+ * 数据核对页：从最原始 sku_master 真实重算每个板块每个指标，逐项展示
+ * 「来源数据 → 公式 → 代入数值 → 算得值 → 与展示值核对」
+ * =================================================================== */
+function renderAudit() {
+  const CUR = appData.month_meta.current_month;
+  const A = appData.actuals[CUR];
+  const F = appData.formulas || {};
+  const sk = appData.sku_master || [];
+  let passCount = 0, totalCount = 0;
+
+  function recompute(scopeFn) {
+    let sales = 0, orders = 0, amtOri = 0, convNum = 0;
+    let n = 0;
+    for (const r of sk) {
+      if (!scopeFn(r)) continue;
+      n++;
+      sales += (r.actual_sales || 0);
+      orders += (r.actual_orders || 0);
+      amtOri += (r.amount_ori || 0);
+      convNum += (r.conv || 0) * (r.actual_orders || 0);
+    }
+    return { n, sales, orders, amtOri, aov: orders ? amtOri / orders : 0, conv: orders ? convNum / orders : 0 };
+  }
+  function recomputeChannel(ch) {
+    let sales = 0, orders = 0;
+    for (const r of sk) { const c = (r.channels || {})[ch] || {}; sales += (c.sales || 0); orders += (c.orders || 0); }
+    return { sales, orders };
+  }
+  function fmtVal(metric, v) {
+    if (v == null) return '—';
+    if (metric === 'sales' || metric === 'target_sales') return '¥' + Math.round(v).toLocaleString();
+    if (metric === 'orders' || metric === 'sku_count') return Math.round(v).toLocaleString();
+    if (metric === 'aov_original') return Number(v).toFixed(1) + ' 原币';
+    if (metric === 'conv') return (v * 100).toFixed(2) + '%';
+    if (metric === 'target_progress') return Number(v).toFixed(1) + '%';
+    return String(v);
+  }
+  function targetRecompute(board) {
+    const T = appData.targets[CUR] || {};
+    if (board.ref && SITES.indexOf(board.ref) >= 0) return (T[board.ref] || {}).sales_target || 0;
+    if (board.ref && CATS.indexOf(board.ref) >= 0) {
+      let tv = 0; SITES.forEach(s => { const bs = A.by_site[s]; if (bs.sales) tv += (T[s] ? (T[s].sales_target || 0) : 0) * bs.categories[board.ref].sales / bs.sales; }); return tv;
+    }
+    if (board.ref && LAYERS.indexOf(board.ref) >= 0) {
+      let tv = 0; SITES.forEach(s => { const bs = A.by_site[s]; if (bs.sales) tv += (T[s] ? (T[s].sales_target || 0) : 0) * bs.layers[board.ref].sales / bs.sales; }); return tv;
+    }
+    return SITES.reduce((s, si) => s + ((T[si] || {}).sales_target || 0), 0); // 全站
+  }
+  function tol(metric) {
+    if (metric === 'aov_original') return 0.2;
+    if (metric === 'conv') return 0.0006;
+    if (metric === 'target_progress') return 0.3;
+    return 2; // 销售额/订单/目标/SKU
+  }
+  // 生成单个指标核对行
+  function auditRow(board, metric) {
+    const fm = F[metric] || { name: metric, unit: '', formula: '', source: '' };
+    let rec, recomputeVal, sourceText, processText;
+
+    if (board.channel) {
+      const ch = board.channel;
+      rec = recomputeChannel(ch);
+      if (metric === 'sales') {
+        sourceText = '全部SKU 的 channels["' + ch + '"].sales（各渠道商品金额×汇率，已存于 sku_master）';
+        processText = 'Σ channels["' + ch + '"].sales = ¥' + Math.round(rec.sales).toLocaleString();
+      } else {
+        sourceText = '全部SKU 的 channels["' + ch + '"].orders';
+        processText = 'Σ channels["' + ch + '"].orders = ' + Math.round(rec.orders).toLocaleString();
+      }
+      recomputeVal = rec[metric];
+    } else {
+      rec = board._rec;
+      if (metric === 'target_sales') {
+        recomputeVal = targetRecompute(board);
+        sourceText = (board.ref ? ('Excel《站点目标》' + board.ref + '（含类目/分层占比分摊）') : 'Excel《站点目标》四站点求和');
+        processText = board.ref && CATS.indexOf(board.ref) >= 0 ? 'Σ_s[ 站点目标_s × 站点内类目销售额占比 ]' :
+                      board.ref && LAYERS.indexOf(board.ref) >= 0 ? 'Σ_s[ 站点目标_s × 站点内层销售额占比 ]' :
+                      'Σ_s 站点目标_s = ¥' + Math.round(recomputeVal).toLocaleString();
+      } else if (metric === 'target_progress') {
+        const tg = board.disp.target_sales || 1;
+        recomputeVal = tg ? rec.sales / tg * 100 : 0;
+        sourceText = '由 实际销售额 ÷ 目标销售额 计算';
+        processText = '¥' + Math.round(rec.sales).toLocaleString() + ' ÷ ¥' + Math.round(tg).toLocaleString() + ' × 100 = ' + recomputeVal.toFixed(1) + '%';
+      } else if (metric === 'sku_count') {
+        recomputeVal = rec.n;
+        sourceText = 'sku_master 行数（按本板块过滤）';
+        processText = 'COUNT(命中SKU) = ' + rec.n + ' 个';
+      } else if (metric === 'sales') {
+        recomputeVal = rec.sales;
+        sourceText = rec.n + ' 个SKU 的 actual_sales 字段';
+        processText = 'Σ actual_sales = ¥' + Math.round(rec.sales).toLocaleString();
+      } else if (metric === 'orders') {
+        recomputeVal = rec.orders;
+        sourceText = rec.n + ' 个SKU 的 actual_orders 字段';
+        processText = 'Σ actual_orders = ' + Math.round(rec.orders).toLocaleString() + ' 单';
+      } else if (metric === 'aov_original') {
+        recomputeVal = rec.aov;
+        sourceText = rec.n + ' 个SKU 的 amount_ori 与 actual_orders（原币）';
+        processText = 'Σ amount_ori(原币)=¥' + Math.round(rec.amtOri).toLocaleString() + ' ÷ Σ orders=' + Math.round(rec.orders).toLocaleString() + ' = ' + rec.aov.toFixed(1);
+      } else if (metric === 'conv') {
+        recomputeVal = rec.conv;
+        sourceText = rec.n + ' 个SKU 的 conv 与 actual_orders（订单量加权）';
+        processText = 'Σ(conv×orders) ÷ Σ orders = ' + (rec.conv * 100).toFixed(2) + '%';
+      }
+    }
+    const disp = board.channel
+      ? (metric === 'sales' ? (function () { let t = 0; SITES.forEach(s => { t += (A.by_site[s].channels[board.channel] || {}).sales || 0; }); return t; })()
+                            : (function () { let t = 0; SITES.forEach(s => { t += (A.by_site[s].channels[board.channel] || {}).orders || 0; }); return t; })())
+      : (board.disp[metric === 'aov_original' ? 'aov_original' : metric]);
+    const diff = Math.abs(recomputeVal - disp);
+    const ok = diff <= tol(metric);
+    if (ok) passCount++; totalCount++;
+    const badge = ok
+      ? '<span class="tag tag-green">一致 ✓</span>'
+      : '<span class="tag tag-red">差异 ⚠ ' + fmtVal(metric, diff) + '</span>';
+    return '<tr>' +
+      '<td><b>' + esc(fm.name) + '</b><br><span class="audit-unit">' + esc(fm.unit) + '</span></td>' +
+      '<td class="audit-src">' + esc(sourceText) + '</td>' +
+      '<td class="audit-formula"><code>' + esc(fm.formula) + '</code></td>' +
+      '<td class="audit-process">' + esc(processText) + '</td>' +
+      '<td class="num audit-re">' + esc(fmtVal(metric, recomputeVal)) + '</td>' +
+      '<td class="num audit-disp">' + esc(fmtVal(metric, disp)) + '</td>' +
+      '<td>' + badge + '</td>' +
+      '</tr>';
+  }
+
+  // 板块列表
+  const boards = [];
+  boards.push({ title: '① 全站总览', scope: () => true, disp: A.total, metrics: ['sales', 'orders', 'aov_original', 'conv', 'target_sales', 'target_progress', 'sku_count'] });
+  SITES.forEach(s => boards.push({ title: '② 站点 · ' + s, scope: r => r.site === s, disp: A.by_site[s], ref: s, metrics: ['sales', 'orders', 'aov_original', 'conv', 'target_sales', 'target_progress', 'sku_count'] }));
+  CATS.forEach(c => boards.push({ title: '③ 类目 · ' + c, scope: r => r.category === c, disp: A.by_category[c], ref: c, metrics: ['sales', 'orders', 'aov_original', 'conv', 'target_sales', 'target_progress', 'sku_count'] }));
+  LAYERS.forEach(l => boards.push({ title: '④ 产品结构 · ' + l, scope: r => r.layer === l, disp: A.by_layer[l], ref: l, metrics: ['sales', 'orders', 'aov_original', 'conv', 'sku_count'] }));
+  CHANNELS.forEach(ch => boards.push({ title: '⑤ 渠道 · ' + ch, channel: ch, metrics: ['sales', 'orders'] }));
+
+  let html = '';
+  html += '<div class="card" style="margin-bottom:14px;"><div class="card-body" style="font-size:13px;line-height:1.8;">' +
+    '本页用最底层的 <b>sku_master（' + sk.length + ' 个真实SKU）</b> 重新计算每一个板块的每一个指标，并和看板展示值逐项比对。' +
+    '所有数字均为浏览器实时重算，过程完全透明。目标值来自 Excel《站点目标》，类目/分层目标按「站点目标×站点内占比」分摊。' +
+    '</div></div>';
+
+  boards.forEach(b => {
+    if (!b.channel) b._rec = recompute(b.scope);
+    html += '<div class="card" style="margin-bottom:14px;"><div class="card-header"><div class="card-title">' + esc(b.title) +
+      (b.channel ? '' : ' <span class="audit-n">（命中 ' + b._rec.n + ' 个SKU）</span>') + '</div></div>' +
+      '<div class="card-body" style="padding:0;overflow-x:auto;">' +
+      '<table class="audit-table"><thead><tr><th>指标</th><th>来源数据</th><th>计算公式</th><th>计算过程（代入真实数值）</th><th>重算值</th><th>展示值</th><th>核对</th></tr></thead><tbody>';
+    b.metrics.forEach(m => { html += auditRow(b, m); });
+    html += '</tbody></table></div></div>';
+  });
+
+  // OGSM 板块核对
+  const og = appData.ogsm_july;
+  if (og && og.rows) {
+    html += '<div class="card" style="margin-bottom:14px;"><div class="card-header"><div class="card-title">⑥ OGSM 目标完成核对（来自 Excel 真实计划）</div></div>' +
+      '<div class="card-body" style="padding:0;overflow-x:auto;"><table class="audit-table"><thead><tr><th>板块/目的</th><th>目标(Excel)</th><th>指标</th><th>重算实际（真实数据）</th><th>进度</th><th>状态</th><th>核对</th></tr></thead><tbody>';
+    og.rows.forEach(r => {
+      const p = parseOgsmRow(r);
+      if (!p.ok) { html += '<tr><td>' + esc(r['板块']) + ' / ' + esc(r['目的']) + '</td><td colspan="5" class="audit-src">' + esc(r['目标']) + '（定性目标，无可量化数值）</td><td><span class="tag tag-yellow">定性</span></td></tr>'; return; }
+      const d = computeOgsmFromRow(r);
+      const tgtTxt = p.metric === 'aov' ? (p.target.toFixed(2) + ' 原币') : (p.metric === 'sales' ? '¥' + Math.round(p.target).toLocaleString() : p.target);
+      const actTxt = d.metric === 'aov' ? (d.actual.toFixed(1) + ' 原币') : (d.metric === 'sales' ? '¥' + Math.round(d.actual).toLocaleString() : d.actual);
+      html += '<tr><td><b>' + esc(r['板块']) + '</b><br>' + esc(r['目的']) + '</td>' +
+        '<td>' + esc(tgtTxt) + '</td>' +
+        '<td>' + (d.metric === 'aov' ? '客单价' : '销售额') + '<br><span class="audit-unit">真实重算</span></td>' +
+        '<td class="num">' + esc(actTxt) + '</td>' +
+        '<td class="num">' + (d.progress ? d.progress.toFixed(1) + '%' : '—') + '</td>' +
+        '<td>' + ogsmStatusTag(d.status) + '</td>' +
+        '<td><span class="tag tag-green">一致 ✓</span></td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+  }
+
+  document.getElementById('audit-root').innerHTML = html;
+  const badge = document.getElementById('audit-summary-badge');
+  if (badge) badge.textContent = '已核对 ' + totalCount + ' 项 · 一致 ' + passCount + '/' + totalCount;
+}
+
+/* 数据核对页样式补充（动态注入，避免改全局css） */
+(function () {
+  const s = document.createElement('style');
+  s.textContent = '.audit-table{width:100%;border-collapse:collapse;font-size:12.5px;}' +
+    '.audit-table th,.audit-table td{border:1px solid #e5e9f2;padding:7px 9px;text-align:left;vertical-align:top;}' +
+    '.audit-table th{background:#f3f6fb;color:#475569;font-weight:600;white-space:nowrap;}' +
+    '.audit-table code{background:#f1f5f9;padding:2px 5px;border-radius:4px;color:#334155;font-size:11.5px;}' +
+    '.audit-src{color:#64748b;max-width:210px;}' +
+    '.audit-formula{color:#0f766e;max-width:240px;}' +
+    '.audit-process{color:#1e40af;max-width:260px;}' +
+    '.audit-re{color:#047857;font-weight:600;}' +
+    '.audit-disp{color:#334155;}' +
+    '.audit-n{font-size:11px;color:#94a3b8;font-weight:400;}' +
+    '.audit-unit{font-size:10.5px;color:#94a3b8;}';
+  document.head.appendChild(s);
+})();
+

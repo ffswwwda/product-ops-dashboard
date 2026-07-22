@@ -79,6 +79,9 @@
         <div class="sidebar-section-title">策略生成器</div>
         <div class="sidebar-nav-item" data-page="strategy" data-sub="gen">策略生成器</div>
         <div class="sidebar-nav-item" data-page="strategy" data-sub="lib">策略库管理</div>
+
+        <div class="sidebar-section-title">数据质量</div>
+        <div class="sidebar-nav-item" data-page="audit" data-sub="all">数据核对（来源公式+逐项验证）</div>
     </aside>
 
     <!-- 主内容区 -->
@@ -501,6 +504,15 @@
                     <div id="strategy-library-list"></div>
                 </div></div>
             </div>
+        </section>
+
+        <section id="page-audit" class="page-section" style="display:none;">
+            <div class="page-header">
+                <div><h1 class="page-title">数据核对 · 来源公式 + 逐项验证</h1>
+                    <p class="page-subtitle">用最原始的 SKU 级数据（sku_master）真实重算每个板块的每个指标，展示「用了什么数据 → 什么公式 → 代入什么数 → 算得多少 → 与展示值是否一致」。所有计算均为前端实时重算，可验证。</p></div>
+                <div class="page-actions"><span class="tag tag-cyan" id="audit-summary-badge"></span></div>
+            </div>
+            <div id="audit-root"></div>
         </section>
     </main>
 
