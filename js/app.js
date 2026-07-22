@@ -2374,14 +2374,47 @@ function computeOgsmFromRow(row) {
     let gapPct = null, status = '缺目标';
     if (!targetMissing && progress != null) {
         if (!timeBound) {
+            // 非时间绑定（客单价/转化率）：按目标达成率判定（对齐 ogsm_analysis.py：达标/未达标）
             gapPct = progress - 100;
-            status = progress >= 100 ? '达标' : (progress >= 95 ? '预警' : '严重');
+            status = progress >= 100 ? '超前' : (progress >= 95 ? '正常' : '滞后');
         } else {
+            // 时间绑定（销售额/订单）：完成率 vs 时间进度（对齐 ogsm_analysis.py 三态）
+            //   完成率 ≥ 时间进度 → 超前；< 95%×时间进度 → 滞后；中间 → 正常
             gapPct = progress - tp;
-            status = gapPct >= 10 ? '超前' : (gapPct >= 0 ? '达标' : (gapPct >= -10 ? '预警' : '严重'));
+            if (gapPct >= 0) status = '超前';
+            else if (gapPct >= -5) status = '正常';
+            else status = '滞后';
         }
     }
     return { ok: p.ok, metric: p.metric, cat: p.cat, shops: p.shops, actual, target, targetMissing, progress, gapPct, status, unit, source: '真实(本周期)' };
+}
+// 生成 D 列（完成）话术——对齐团队 ogsm_analysis.py 填写规则：
+//   财务：实际销售额，目标，完成率，时间进度，状态：超前/正常/滞后
+//   SKU单量：目标N单，实际M单，完成率，应达(目标×时间进度)，状态
+function formatOgsmD(data, row) {
+    const tp = state.timeProgress;
+    if (data.targetMissing && data.metric === 'conv')
+        return '转化率数据源缺失（无访问/UV 字段），目标 ≥' + fmtOgsmValue(data.target, data.unit) + '，无法计算；请补充后重算';
+    if (data.targetMissing)
+        return '实际 ' + fmtOgsmValue(data.actual, data.unit) + '（真实·本周期），目标缺失（数据源未提供类目级目标），无法算进度';
+    if (!data.ok)
+        return '定性目标（' + (row['板块'] || '') + '），无可量化数值，团队周报状态：' + ((row.weeks && row.weeks[0] && row.weeks[0].status) || '—');
+    const prog = pct(data.progress);
+    if (data.metric === 'orders') {
+        const should = Math.round(data.target * tp / 100);
+        return '目标 ' + fmtOgsmValue(data.target, data.unit) + ' 单，实际 ' + fmtOgsmValue(data.actual, data.unit) +
+            ' 单，完成率 ' + prog + '%，应达 ' + should + ' 单（目标×时间进度' + tp + '%），状态：' + data.status;
+    }
+    if (data.metric === 'aov')
+        return '实际均价 ' + fmtOgsmValue(data.actual, data.unit) + '，目标 ' + fmtOgsmValue(data.target, data.unit) +
+            '，达成率 ' + prog + '%，状态：' + data.status;
+    if (data.metric === 'conv')
+        return '实际转化率 ' + fmtOgsmValue(data.actual, data.unit) + '，目标 ≥' + fmtOgsmValue(data.target, data.unit) +
+            '，达成率 ' + prog + '%，状态：' + data.status;
+    if (data.metric === 'struct') return data.actual;  // 结构行由 buildOgsmCheck 给文本
+    // 默认 sales
+    return '实际销售额 ' + fmtOgsmValue(data.actual, data.unit) + '（' + data.shops.join('/') + (data.cat ? ('·' + data.cat) : '') +
+        '），目标 ' + fmtOgsmValue(data.target, data.unit) + '，完成率 ' + prog + '%，时间进度 ' + tp + '%，状态：' + data.status;
 }
 function buildOgsmCheck(row, data) {
     // 类目级目标缺失（如客单价）：实际值可算，但无目标可比对 → 明确标注缺少数据
@@ -2437,11 +2470,11 @@ function autoFillWeeklyReview() {
     o.rows.forEach((r, i) => {
         const key = 'r' + i; const data = computeOgsmFromRow(r);
         const dEl = document.getElementById('d_' + key), cEl = document.getElementById('c_' + key);
-        const defD = '完成' + (data.ok ? fmtOgsmValue(data.actual, data.unit) : (data.targetMissing ? fmtOgsmValue(data.actual, data.unit) : '—')) + '，目标' + (data.ok ? fmtOgsmValue(data.target, data.unit) : (data.targetMissing ? '缺失(数据源未提供)' : '定性')) + '，进度' + (data.ok ? pct(data.progress) : '—') + (data.ok ? '，' + data.status + Math.abs(data.gapPct).toFixed(1) + '%' : '');
+        const defD = formatOgsmD(data, r);
         if (dEl) dEl.value = defD;
         if (cEl) cEl.value = buildOgsmCheck(r, data);
     });
-    alert('已根据真实 7月OGSM 自动填写完成D与检查（可继续编辑）');
+    alert('已根据真实 7月OGSM + 团队填写规则 自动填写完成D与检查（可继续编辑）');
 }
 function renderWeeklyReview() {
     const week = document.getElementById('ogsms-week').value;
@@ -2492,9 +2525,7 @@ function renderWeeklyReview() {
             statusHtml = ogsmStatusTag(data.status) + ' ' + Math.abs(data.gapPct).toFixed(1) + '%';
             checkTxt = buildOgsmCheck(r, data);
         }
-        const defD = '完成' + (data.ok ? fmtOgsmValue(data.actual, data.unit) : (data.targetMissing ? fmtOgsmValue(data.actual, data.unit) : '—')) +
-            '，目标' + (data.ok ? fmtOgsmValue(data.target, data.unit) : (data.targetMissing ? '缺失(数据源未提供)' : '定性')) +
-            '，进度' + (data.ok ? pct(data.progress) : '—') + (data.ok ? '，' + data.status + Math.abs(data.gapPct).toFixed(1) + '%' : '');
+        const defD = formatOgsmD(data, r);
         const defC = checkTxt;
         const d = sv.D || defD;
         const c = sv.check || defC;
@@ -2583,9 +2614,7 @@ function renderOgsmReal() {
         const chk = buildOgsmCheck(r, d);
         let fillD;
         if (d.metric === 'struct') fillD = '真实分层分布见「检查」列（超爆/爆款/头部/腰部/尾部 SKU 数）；目标=《产品定位》门槛，非单一数值目标';
-        else if (d.targetMissing) fillD = (d.metric === 'aov' ? '实际客单价' : '完成') + fmtOgsmValue(d.actual, d.unit) + '（真实），目标：缺失（数据源未提供' + (d.metric === 'aov' ? '类目级客单价' : '该类目级') + '目标）';
-        else if (d.ok) fillD = '完成' + fmtOgsmValue(d.actual, d.unit) + '，目标' + fmtOgsmValue(d.target, d.unit) + '，进度' + prog + '，' + d.status + Math.abs(d.gapPct).toFixed(1) + '%';
-        else fillD = (w.D || '—');
+        else fillD = formatOgsmD(d, r);
         const nextTxt = w.next || w.下一步 || '—';
         html += '<tr>' +
             '<td><b>' + esc(r['板块']) + '</b></td>' +
