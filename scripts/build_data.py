@@ -705,6 +705,75 @@ def build_sku_period():
         'skus': skus, 'by_category': by_cat_out,
     }
 
+def _build_ogsm_july_real():
+    """解析用户真实填写的 7月 OGSM csv（宽表：每周一组列 D/状态/C/下一步）。
+    返回 {'meta':..., 'rows':[...]} 或 None（文件不可读时退回推导版）。
+    规则：'先读取最后一个字段'——每周完成值 D 取该行最后一个非空 D（=最新一周填写）。"""
+    CSV = '/Users/fsw/Downloads/商品部 26年-7月OGSM - 飞机杯 (2).csv'
+    try:
+        with open(CSV, 'r', encoding='utf-8-sig') as f:
+            rows = list(_csv.reader(f))
+    except Exception:
+        return None
+    if len(rows) < 3:
+        return None
+    hdr = rows[0]
+    # 周标题列：header 行中含 '--' 或 '进度' 的列（每 4 列一组的起点：D/状态/C/下一步）
+    week_titles = []  # (col, period, progress)
+    for c in range(8, len(hdr), 4):
+        h = hdr[c] if c < len(hdr) else ''
+        if h and ('--' in h or '进度' in h):
+            period = h.split('(')[0].strip()
+            prog = ''
+            m = _re.search(r'进度([\d.]+)%', h)
+            if m:
+                prog = m.group(1) + '%'
+            week_titles.append((c, period, prog))
+    if not week_titles:
+        return None
+    out_rows = []
+    cur_plate = ''
+    for r in rows[2:]:  # 跳过 header(0) 与子标题(1)
+        if len(r) <= 7:
+            continue
+        if r[0].strip():
+            cur_plate = r[0].strip()
+        plate = cur_plate
+        if not plate:
+            continue
+        weeks = []
+        for (c, period, prog) in week_titles:
+            D = r[c].strip() if c < len(r) else ''
+            status = r[c + 1].strip() if c + 1 < len(r) else ''
+            C = r[c + 2].strip() if c + 2 < len(r) else ''
+            nxt = r[c + 3].strip() if c + 3 < len(r) else ''
+            if D or status or C or nxt:
+                weeks.append({'period': period, 'progress': prog, 'D': D, 'status': status, 'C': C, 'next': nxt})
+        out_rows.append({
+            '板块': plate,
+            '目的': r[1].strip() if len(r) > 1 else '',
+            '目标': r[2].strip() if len(r) > 2 else '',
+            '策略': r[3].strip() if len(r) > 3 else '',
+            '衡量': r[4].strip() if len(r) > 4 else '',
+            '计划': r[5].strip() if len(r) > 5 else '',
+            '落地店铺': r[6].strip() if len(r) > 6 else '',
+            '责任人': r[7].strip() if len(r) > 7 else '',
+            'weeks': weeks,
+        })
+    if not out_rows:
+        return None
+    meta = {
+        'month': '2026年7月',
+        'source': '商品部 26年-7月OGSM - 飞机杯 (2).csv（用户真实填写，每周 D/状态/C/下一步）',
+        'scope': '飞机杯（类目运营）',
+        'period_label': '本周期 2026/07/01-2026/07/31（D/C 按实际填写周）',
+        'note': '真实OGSM=用户csv如实呈现（板块/目的/目标/策略/衡量/计划/店铺/责任人 + 每周真实填写 D/状态/C/下一步）；'
+                '生成周复盘=系统基于真实数据+团队填写规则计算每行 D。',
+        'week_titles': [w[1] for w in week_titles],
+    }
+    return {'meta': meta, 'rows': out_rows}
+
+
 # ---------- 真实 OGSM（7月，飞机杯）----------
 def build_ogsm_july():
     """从真实数据源 Excel（站点目标/产品定位/时间进度）构建 7月 OGSM，范围=飞机杯+增大器类目运营。
@@ -712,6 +781,11 @@ def build_ogsm_july():
     · 销售额目标：Excel 仅含站点级全类目目标 → 类目级目标按「站点目标×类目销售占比」推导（透明标注）。
     · 客单价目标：Excel 仅含站点级，类目级缺失 → 目标留空，周复盘标注"缺少数据"。
     · 产品结构目标：来自《产品定位》真实门槛（可计算）。"""
+    # 优先解析用户真实填写的 7月 OGSM csv（含每周真实 D/状态/C/下一步）；
+    # 不可读则退回下方推导版（站点目标×占比）。
+    real = _build_ogsm_july_real()
+    if real:
+        return real
     try:
         wb = _wb()
     except Exception:

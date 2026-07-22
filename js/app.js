@@ -2579,17 +2579,41 @@ function ogsmStatusTag(s) {
     const m = { '滞后': 'red', '超前': 'green', '正常': 'cyan', '未开始': 'yellow', '达标': 'green', '预警': 'yellow', '严重': 'red', '缺目标': 'gray' };
     return `<span class="tag tag-${m[s] || 'yellow'}">${esc(s || '—')}</span>`;
 }
+// 取该行最后一个有填写的周（"先读取最后一个字段"规则 = 最新一周完成值 D）
+function ogsmLastFilledWeek(r) {
+    if (!r.weeks || !r.weeks.length) return null;
+    const filled = r.weeks.filter(w => (w.D && w.D.trim()) || (w.status && w.status.trim()) || (w.C && w.C.trim()));
+    return filled.length ? filled[filled.length - 1] : null;
+}
+// 完成D列：details 展开所有已填周（每周围含 真实D/状态/C/下一步），summary 显示最新周
+function ogsmWeeksView(r) {
+    if (!r.weeks || !r.weeks.length) return '—';
+    const filled = r.weeks.filter(w => (w.D && w.D.trim()) || (w.status && w.status.trim()) || (w.C && w.C.trim()));
+    if (!filled.length) return '—';
+    const last = filled[filled.length - 1];
+    const items = filled.map(w => {
+        const st = w.status ? ' · ' + ogsmStatusTag(w.status) : '';
+        return '<div style="margin:4px 0;padding-left:6px;border-left:2px solid rgba(99,102,241,.35);">'
+            + '<b style="color:var(--radium-text-strong);">' + esc(w.period || '') + '</b>' + st
+            + (w.D ? '<div style="margin-top:2px;white-space:pre-wrap;">' + esc(w.D) + '</div>' : '')
+            + (w.C ? '<div style="margin-top:2px;color:var(--radium-text-muted);font-size:11.5px;white-space:pre-wrap;">检查C：' + esc(w.C) + '</div>' : '')
+            + (w.next ? '<div style="margin-top:2px;color:var(--radium-text-muted);font-size:11.5px;white-space:pre-wrap;">下一步：' + esc(w.next) + '</div>' : '')
+            + '</div>';
+    }).join('');
+    const lastSt = last.status ? ' · ' + ogsmStatusTag(last.status) : '';
+    return '<details style="font-size:12px;"><summary style="cursor:pointer;font-weight:600;color:var(--radium-text-strong);">最新：' + esc(last.period || '') + lastSt + '</summary>'
+        + '<div style="margin-top:4px;">' + items + '</div></details>';
+}
 function renderOgsmReal() {
     const o = appData.ogsm_july;
     const box = document.getElementById('ogsms-real');
     if (!o || !o.rows || !o.rows.length) {
-        box.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">暂无真实OGSM数据</div><div class="empty-state-desc">需将《7月飞机杯复盘数据源.xlsx》接入 build_data.py 后重新生成（当前源为量化目标：站点销售额/客单价/产品结构）</div></div>';
+        box.innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">暂无真实OGSM数据</div><div class="empty-state-desc">需将《商品部 26年-7月OGSM - 飞机杯 (2).csv》接入 build_data.py 后重新生成</div></div>';
         return;
     }
     const meta = document.getElementById('ogsms-real-meta');
-    if (meta) meta.textContent = (o.meta.scope ? '范围：' + o.meta.scope + ' ｜ ' : '') + (o.meta.period_label || '') + ' ｜ 来源：' + (o.meta.source || '');
+    if (meta) meta.textContent = (o.meta.scope ? '范围：' + o.meta.scope + ' ｜ ' : '') + (o.meta.period_label || '') + ' ｜ 来源：' + (o.meta.source || '') + (o.meta.week_titles ? ' ｜ 已填周：' + o.meta.week_titles.join('、') : '');
     // 真表格：列序严格按 csv-ogsm 原序（板块/目的/目标/策略/衡量/计划/店铺/责任人/D/状态/C/下一步计划/核对）
-    // 删"进度"列（已在 fillD 字符串内表达，不重复占位）
     const cols = [
         { w: '5%',  t: '板块' },
         { w: '8%',  t: '目的' },
@@ -2599,7 +2623,7 @@ function renderOgsmReal() {
         { w: '8%',  t: '计划' },
         { w: '7%',  t: '店铺' },
         { w: '6%',  t: '责任人' },
-        { w: '14%', t: '完成 D' },
+        { w: '15%', t: '完成 D（每周真实填写）' },
         { w: '6%',  t: '状态' },
         { w: '11%', t: '检查 C' },
         { w: '6%',  t: '下一步计划' },
@@ -2607,15 +2631,11 @@ function renderOgsmReal() {
     ];
     let html = `<table class="data-table ogsm-table"><colgroup>${cols.map(c => '<col style="width:' + c.w + '">').join('')}</colgroup><thead><tr>${cols.map(c => '<th>' + c.t + '</th>').join('')}</tr></thead><tbody>`;
     o.rows.forEach((r, idx) => {
-        const d = computeOgsmFromRow(r);
-        const w = r.weeks[0] || {};
-        const prog = d.ok ? pct(d.progress) : '—';
-        const st = d.ok ? ogsmStatusTag(d.status) + ' ' + Math.abs(d.gapPct).toFixed(1) + '%' : (d.targetMissing ? ogsmStatusTag('缺目标') : ogsmStatusTag(w.status));
-        const chk = buildOgsmCheck(r, d);
-        let fillD;
-        if (d.metric === 'struct') fillD = '真实分层分布见「检查」列（超爆/爆款/头部/腰部/尾部 SKU 数）；目标=《产品定位》门槛，非单一数值目标';
-        else fillD = formatOgsmD(d, r);
-        const nextTxt = w.next || w.下一步 || '—';
+        const wReal = ogsmLastFilledWeek(r);
+        const dCol = ogsmWeeksView(r);
+        const stCol = (wReal && wReal.status) ? ogsmStatusTag(wReal.status) : '—';
+        const cCol = (wReal && wReal.C) ? wReal.C : '—';
+        const nextCol = (wReal && wReal.next) ? wReal.next : '—';
         html += '<tr>' +
             '<td><b>' + esc(r['板块']) + '</b></td>' +
             '<td class="ogc-cell">' + esc(r['目的'] || '') + '</td>' +
@@ -2625,11 +2645,11 @@ function renderOgsmReal() {
             '<td class="ogc-cell">' + esc(r['计划'] || '—') + '</td>' +
             '<td>' + esc(r['落地店铺'] || '—') + '</td>' +
             '<td>' + esc(r['责任人'] || '—') + '</td>' +
-            '<td class="ogc-fillD">' + esc(fillD) + '</td>' +
-            '<td>' + st + '</td>' +
-            '<td class="ogc-check">' + esc(chk) + '</td>' +
-            '<td class="ogc-cell">' + esc(nextTxt) + '</td>' +
-            '<td><button class="btn-verify" onclick="verifyData({type:\'ogsm\',idx:' + idx + '})" title="按真实数据逐项重算 + 准确率">核对</button></td>' +
+            '<td class="ogc-fillD">' + dCol + '</td>' +
+            '<td>' + stCol + '</td>' +
+            '<td class="ogc-check">' + esc(cCol) + '</td>' +
+            '<td class="ogc-cell">' + esc(nextCol) + '</td>' +
+            '<td><button class="btn-verify" onclick="verifyData({type:\'ogsm\',idx:' + idx + '})" title="系统按真实数据逐项重算 + 准确率（与上方真实填写对比）">核对</button></td>' +
         '</tr>';
     });
     html += '</tbody></table>';

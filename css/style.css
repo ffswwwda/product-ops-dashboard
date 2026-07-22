@@ -688,7 +688,8 @@ body::after {
 
 /* OGSM 表格外层容器（带横向滚动兜底，确保不会把容器撑出视口） */
 #ogsms-real, #ogsms-report {
-    overflow-x: auto;
+    overflow: auto;
+    max-height: 70vh;
     -webkit-overflow-scrolling: touch;
 }
 .tag-gray { background: rgba(148,163,184,.16); color: #94a3b8; border: 1px solid rgba(148,163,184,.3); }
