@@ -13,13 +13,13 @@ const state = { page: 'site', sub: 'all', month: '7月', cutoff: '2026-07-14',
                 curShop: null, curShopMetric: 'uv', changeMetric: 'uv',
                 focusCycle: {start: '2026-07-01', end: '2026-07-14'} };
 const SITES = ['AC美', 'BV美', 'UK英', 'EU欧'];
-const CATS = ['飞机杯', '增大器', '震动器', '后庭', '阳具', '倒模', 'ACC', '代发'];
+const CATS = ['飞机杯', '增大器'];   // 类目运营范围：飞机杯 + 增大器（用户明确"不是全类目"）
 const LAYERS = ['超爆', '爆款', '头部', '腰部', '尾部'];
 const CHANNELS = ['SEM', 'EMAIL', '直访', 'SEO', '信息流', '联盟', '社媒', '其他'];
 let exchangeRates = { 'AC美': 6.7167, 'BV美': 6.7167, 'UK英': 9.0339, 'EU欧': 7.8122 };
 const siteColor = { 'AC美': '#22d3ee', 'BV美': '#60a5fa', 'UK英': '#a78bfa', 'EU欧': '#34d399' };
 const layerColor = { '超爆': '#f59e0b', '爆款': '#fb7185', '头部': '#60a5fa', '腰部': '#34d399', '尾部': '#94a3b8' };
-const catColor = { '飞机杯': '#f472b6', '增大器': '#facc15', '震动器': '#38bdf8', '后庭': '#c084fc', '阳具': '#2dd4bf', '倒模': '#fb923c', 'ACC': '#a3e635', '代发': '#9ca3af' };
+const catColor = { '飞机杯': '#f472b6', '增大器': '#facc15' };
 let chartRegistry = [];
 let chartDataStore = {}; // 每个图表ID的最新数据：{ title, type, categories, series, data, unit }
 
@@ -223,6 +223,54 @@ const pct = n => (n || 0).toFixed(1) + '%';
 const num = n => (n || 0).toLocaleString();
 const rint = n => Math.round(n || 0);
 const esc = s => String(s == null ? '' : s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// 转化率：数据源缺失（Excel 无访问/转化字段）时返回"数据源缺失"标签，绝不显示伪造的 0%
+const fmtConv = n => (n == null) ? '<span class="tag tag-gray" title="数据源缺失：Excel 无访问/转化字段">缺失</span>' : pct(n * 100);
+const fmtConvPlain = n => (n == null) ? '数据源缺失' : pct(n * 100);
+const MISSING = '<span class="tag tag-gray" title="数据源缺失">缺失</span>';
+function escHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+
+/* 计算说明面板：从 data.json 的 formulas + metric_availability 渲染每个板块的指标口径 / 数据源 / 可计算性 */
+function renderCalcNote(bodyId, scopeLabel) {
+    const f = appData.formulas || {};
+    const ma = appData.metric_availability || {};
+    const mm = appData.month_meta || {};
+    const order = ['sales', 'orders', 'aov_original', 'conv', 'target_sales', 'target_progress', 'sku_count', 'struct_target', 'conv_target'];
+    const nameMap = { sales: '销售额', orders: '订单量', aov_original: '客单价(原币)', conv: '转化率', target_sales: '目标销售额', target_progress: '目标进度', sku_count: 'SKU数量', struct_target: '产品结构目标', conv_target: '客单价/转化率目标' };
+    let rows = '';
+    order.forEach(k => {
+        const fo = f[k] || {};
+        const av = ma[k] || {};
+        const comp = av.computable !== false;
+        const compTag = comp ? '<span class="tag tag-green">可计算</span>' : '<span class="tag tag-gray">缺失·留空</span>';
+        const formula = fo.formula || av.source || '—';
+        const source = av.source || fo.source || '—';
+        const scope = av.scope || '—';
+        const note = av.note || '';
+        rows += `<tr>
+            <td><b>${escHtml(nameMap[k] || k)}</b></td>
+            <td>${escHtml(scope)}</td>
+            <td style="max-width:340px;">${escHtml(formula)}</td>
+            <td style="max-width:300px;">${escHtml(source)}</td>
+            <td>${compTag}</td>
+            <td>${escHtml(note)}</td>
+        </tr>`;
+    });
+    const head = `范围：<b>飞机杯 + 增大器</b>（类目运营看板，非全类目） ｜ 周期：<b>${escHtml(mm.current_month_label || '7月')}（本周期截止 ${escHtml(mm.cutoff || '')}，时间进度 ${mm.time_progress != null ? mm.time_progress + '%' : '—'}）</b> ｜ 本板块：${escHtml(scopeLabel)}`;
+    document.getElementById(bodyId).innerHTML = `
+        <div class="calc-note-head">${head}</div>
+        <div style="overflow-x:auto;"><table class="data-table calc-table">
+            <thead><tr><th>指标</th><th>计算范围</th><th>计算公式（口径）</th><th>数据源</th><th>可计算?</th><th>说明 / 缺失原因</th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table></div>
+        <p class="calc-note-tip">标记「缺失·留空」的指标，因提供的 Excel 数据源无对应字段（如访问 / UV / 转化、类目级客单价目标），看板一律显示「数据源缺失」而非伪造数值；补全数据源后自动可计算。</p>`;
+}
+function renderCalcNotes() {
+    renderCalcNote('calc-note-site', '站点（4 店铺汇总）');
+    renderCalcNote('calc-note-category', '类目（飞机杯 / 增大器）');
+    renderCalcNote('calc-note-product', '商品（按结构层）');
+}
 function cls(progress, tp) {
     const expect = (tp == null ? state.timeProgress : tp);
     if (progress >= expect) return 'pos';
@@ -374,6 +422,7 @@ async function loadData() {
     seedSampleReviews();
     seedSampleFocus();
     renderValidBadge();
+    renderCalcNotes();
     switchPage('site', 'all');
 }
 function seedSampleReviews() {
@@ -588,7 +637,7 @@ function renderSiteDetail(site) {
 function brkRow(dim, name, sales, orders, totalSales, totalOrders, sku_count, aov, conv) {
     const salesShare = totalSales ? (sales / totalSales * 100).toFixed(1) : 0;
     const orderShare = totalOrders ? (orders / totalOrders * 100).toFixed(1) : 0;
-    return `<tr><td>${dim}</td><td>${name}</td><td class="num">${fmtW(sales)}</td><td class="num">${salesShare}%</td><td class="num">${num(orders)}</td><td class="num">${orderShare}%</td><td class="num">${num(sku_count || 0)}</td><td class="num">${money(aov || 0)}</td><td class="num">${pct((conv || 0) * 100)}</td></tr>`;
+    return `<tr><td>${dim}</td><td>${name}</td><td class="num">${fmtW(sales)}</td><td class="num">${salesShare}%</td><td class="num">${num(orders)}</td><td class="num">${orderShare}%</td><td class="num">${num(sku_count || 0)}</td><td class="num">${money(aov || 0)}</td><td class="num">${fmtConv(conv)}</td></tr>`;
 }
 function renderShopSkuTable(site) {
     const list = (appData.sku_master || []).filter(r => r.site === site && (state.shopLayer === 'all' || r.layer === state.shopLayer));
@@ -847,7 +896,7 @@ function renderProductLayer(layer) {
     document.getElementById('pl-cards').innerHTML = targetHeroHTML({
         scope: '单量', target: d.target_orders, actual: d.orders,
         title: layer + '商品 · 目标对照总览',
-        meta: `${num(d.sku_count)} 个SKU · 销售额 ${fmtW(d.sales)} · 转化率 ${pct(d.conv * 100)}`
+        meta: `${num(d.sku_count)} 个SKU · 销售额 ${fmtW(d.sales)} · 转化率 ${fmtConvPlain(d.conv)}`
     });
     const sc = safeInit('pl-shop-chart');
     sc.setOption({ tooltip: { trigger: 'axis' }, legend: { data: ['销售额', '单量'], textStyle: { color: '#94a3b8' } },
@@ -858,7 +907,12 @@ function renderProductLayer(layer) {
         series: [{ name: '销售额', __unit: 'sales', type: 'bar', data: SITES.map(s => d.by_site[s].sales), itemStyle: { color: '#22d3ee', borderRadius: [6, 6, 0, 0] }, barWidth: '40%' },
                  { name: '单量', __unit: 'orders', type: 'line', yAxisIndex: 1, data: SITES.map(s => d.by_site[s].orders), itemStyle: { color: '#f59e0b' } }] });
     const cc = safeInit('pl-conv-chart');
-    cc.setOption(barOpt(SITES, SITES.map(s => { const g = (appData.sku_master || []).filter(r => r.layer === layer && r.site === s); const o = g.reduce((s, r) => s + r.actual_orders, 0); const c = g.reduce((s, r) => s + r.conv * r.actual_orders, 0); return o ? +((c / o * 100).toFixed(2)) : 0; }), '转化率%', s => siteColor[s]));
+    const _hasConv = (appData.sku_master || []).some(r => r.layer === layer && r.conv != null);
+    if (!_hasConv) {
+        document.getElementById('pl-conv-chart').innerHTML = '<div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">转化率数据源缺失</div><div class="empty-state-desc">Excel 无访问/转化字段，无法计算各分层转化率</div></div>';
+    } else {
+        cc.setOption(barOpt(SITES, SITES.map(s => { const g = (appData.sku_master || []).filter(r => r.layer === layer && r.site === s); const o = g.reduce((s, r) => s + (r.actual_orders || 0), 0); const c = g.reduce((s, r) => s + (r.conv || 0) * (r.actual_orders || 0), 0); return o ? +((c / o * 100).toFixed(2)) : 0; }), '转化率%', s => siteColor[s]));
+    }
     const list = (appData.sku_master || []).filter(r => r.layer === layer);
     list.sort((a, b) => b.actual_orders - a.actual_orders);
     let rows = '';
@@ -867,7 +921,7 @@ function renderProductLayer(layer) {
         rows += `<tr><td>${esc(r.ns_code)}</td><td>${r.category}</td><td>${r.site}</td>
             <td class="num">${num(r.target_orders)}</td><td class="num">${num(r.actual_orders)}</td>
             <td class="num"><span class="tag tag-${cls(prog)}">${pct(prog)}</span></td>
-            <td>${pct(r.conv * 100)}</td><td>${r.change_type}</td><td>${esc(r.owner)}</td>
+            <td>${fmtConvPlain(r.conv)}</td><td>${r.change_type}</td><td>${esc(r.owner)}</td>
             <td><button class="btn btn-mini" onclick="openSkuModal('${esc(r.ns_code)}','${r.site}')">深度</button></td></tr>`;
     });
     document.getElementById('pl-sku-table').innerHTML = rows || '<tr><td colspan="10">无数据</td></tr>';
@@ -890,7 +944,7 @@ function openSkuModal(code, site) {
         card('本周期销售额', fmtW(r.actual_sales), `截止 ${state.cutoff.slice(5)}`, 'cyan') +
         card('本周期单量', num(r.actual_orders), `目标单量 ${num(r.target_orders)}`, 'blue') +
         card('目标进度', pct(prog), `时间进度 ${pct(tpProg)}`, cls(prog, tpProg)) +
-        card('转化率', pct(r.conv * 100), `客单价 ${money(r.aov)}`, 'green') +
+        card('转化率', fmtConvPlain(r.conv), `客单价 ${money(r.aov)}`, 'green') +
         card('定位', r.layer, '预估 ' + (r.est_layer || '-'), '') +
         card('变化类型', r.change_type, '上月 ' + num(r.last_month_sales), '') +
         card('类目', r.category, '负责人 ' + esc(r.owner), '') +
@@ -1300,7 +1354,7 @@ function focusDemoCard(item, cycDays) {
                 <div>周期目标单量：<b>${num(partTarget)}</b></div><div>实际单量：<b>${num(r.actual_orders)}</b></div>
                 <div>进度：<span class="tag tag-${cls(prog, 100)}">${pct(prog)}</span></div>
                 <div>超前/滞后：<span class="tag tag-${lead >= 0 ? 'green' : 'red'}">${lead >= 0 ? '+' : ''}${num(lead)}</span></div>
-                <div>转化率：${pct(r.conv * 100)}</div><div>本周期销售额：${fmtW(r.actual_sales)}</div>
+                <div>转化率：${fmtConvPlain(r.conv)}</div><div>本周期销售额：${fmtW(r.actual_sales)}</div>
             </div>
             <div style="margin-top:10px;text-align:right;"><button class="btn btn-mini" onclick="openSkuModal('${esc(item.code)}','${item.site}')">深度</button></div>
         </div></div>`;
@@ -1884,6 +1938,7 @@ function fmtOgsmValue(v, unit) {
     if (unit === 'money') return fmtW(v);
     if (unit === 'money2') return (v == null ? '—' : Number(v).toFixed(1));
     if (unit === 'pct' || unit === 'percent') return pct(v);
+    if (unit === 'struct') return '—';
     return num(v);
 }
 /* ---------- OGSM 生成周复盘：驱动真实 7月 OGSM ---------- */
@@ -1901,8 +1956,13 @@ function parseOgsmRow(row) {
     const goalText = (row['目标'] || '');
     const measureText = (row['衡量'] || '');
     const shops = mapOgsmShops(row['落地店铺']);
+    // 产品结构行：目标是《产品定位》门槛（非单一数值），不应被当成数字目标去算进度
+    if (row['板块'] === '产品结构') {
+        return { ok: false, metric: 'struct', target: 0, cat: null, shops };
+    }
     let cat = null;
-    if (goalText.indexOf('飞机杯') >= 0) cat = '飞机杯';
+    if (goalText.indexOf('飞机杯+增大器') >= 0 || goalText.indexOf('合计') >= 0) cat = null;  // 合计=两品类并集
+    else if (goalText.indexOf('飞机杯') >= 0) cat = '飞机杯';
     else if (goalText.indexOf('增大器') >= 0) cat = '增大器';
     // 先按「衡量」判定指标类型（衡量是字段语义，比在整段文字里猜数字可靠）
     let metric = 'sales';
@@ -1946,36 +2006,51 @@ function getWeightedAov(shops, cat) {
 }
 function computeOgsmFromRow(row) {
     const p = parseOgsmRow(row);
-    if (!p.ok) return { ok: false, shops: p.shops, cat: p.cat };
     const tp = state.timeProgress;
+    // 无论是否有目标，都先计算真实实际值（来自本周期数据）
     let actual = 0, unit = 'money', timeBound = true;
     if (p.metric === 'sales') { actual = _ogsmCross(p.shops, p.cat, 'sales'); }
     else if (p.metric === 'orders') { actual = _ogsmCross(p.shops, p.cat, 'orders'); unit = 'number'; }
     else if (p.metric === 'conv') { actual = getWeightedConv(p.shops, p.cat); unit = 'pct'; timeBound = false; }
     else if (p.metric === 'aov') { actual = getWeightedAov(p.shops, p.cat); unit = 'money2'; timeBound = false; }
+    else if (p.metric === 'struct') { actual = null; unit = 'struct'; timeBound = false; }
     const target = p.target;
-    const progress = target ? actual / target * 100 : 0;
-    // 客单价/转化率不随时间进度比较，按阈值判定；销售额/单量按时间进度比较
-    let gapPct, status;
-    if (!timeBound) {
-        gapPct = progress - 100;
-        status = progress >= 100 ? '达标' : (progress >= 95 ? '预警' : '严重');
-    } else {
-        gapPct = progress - tp;
-        status = gapPct >= 10 ? '超前' : (gapPct >= 0 ? '达标' : (gapPct >= -10 ? '预警' : '严重'));
+    const targetMissing = !p.ok;                 // 目标字段无可量化数值（如类目级客单价目标缺失）
+    const progress = (target && actual != null) ? actual / target * 100 : null;
+    let gapPct = null, status = '缺目标';
+    if (!targetMissing && progress != null) {
+        if (!timeBound) {
+            gapPct = progress - 100;
+            status = progress >= 100 ? '达标' : (progress >= 95 ? '预警' : '严重');
+        } else {
+            gapPct = progress - tp;
+            status = gapPct >= 10 ? '超前' : (gapPct >= 0 ? '达标' : (gapPct >= -10 ? '预警' : '严重'));
+        }
     }
-    return { ok: true, metric: p.metric, cat: p.cat, shops: p.shops, actual, target, progress, gapPct, status, unit, source: '真实(本周期)' };
+    return { ok: p.ok, metric: p.metric, cat: p.cat, shops: p.shops, actual, target, targetMissing, progress, gapPct, status, unit, source: '真实(本周期)' };
 }
 function buildOgsmCheck(row, data) {
+    // 类目级目标缺失（如客单价）：实际值可算，但无目标可比对 → 明确标注缺少数据
+    if (data.targetMissing && row['板块'] !== '产品结构') {
+        const actualTxt = fmtOgsmValue(data.actual, data.unit);
+        const reason = (data.metric === 'aov')
+            ? 'Excel《站点目标》仅含 4 站点各 1 个客单价目标（全类目），无《' + row['板块'] + '》类目级客单价目标'
+            : 'Excel 未提供《' + row['板块'] + '》类目级目标（仅站点级全类目目标）';
+        return '缺少数据：' + reason + '，无法计算完成进度。实际值（真实·本周期）= ' + actualTxt +
+            '（来源：' + (data.metric === 'aov' ? 'Σ原币金额/Σ单量' : '站点×类目真实汇总') + '）。请补充该类目级目标后重算。';
+    }
+    if (row['板块'] === '产品结构') {
+        const cnt = {}; LAYERS.forEach(l => cnt[l] = 0);
+        (appData.sku_master || []).forEach(s => { if (cnt[s.layer] !== undefined) cnt[s.layer]++; });
+        const total = (appData.sku_master || []).length || 1;
+        const parts = LAYERS.map(l => l + ' ' + cnt[l] + '个(' + (cnt[l] / total * 100).toFixed(1) + '%)');
+        // 结构门槛（来自《产品定位》）
+        const thr = { '超爆': '整月≥300/日均≥10', '爆款': '150-300/5-10', '头部': '90-150/3-5', '腰部': '10-90/0.33-3', '尾部': '<10/<0.33' };
+        const thrParts = LAYERS.map(l => l + '(' + (thr[l] || '') + ')');
+        return '真实分层分布（飞机杯+增大器 ' + total + ' SKU）：' + parts.join('、') + '。\n结构门槛（《产品定位》）：' + thrParts.join('、') +
+            '。检查：超爆/爆款/头部占比越高越好；腰部/尾部占比偏高时需推动向头部迁移。';
+    }
     if (!data.ok) {
-        // 产品结构：无可量化数值目标，改为展示真实分层分布（按本月阈值分类）
-        if (row['板块'] === '产品结构') {
-            const cnt = {}; LAYERS.forEach(l => cnt[l] = 0);
-            (appData.sku_master || []).forEach(s => { if (cnt[s.layer] !== undefined) cnt[s.layer]++; });
-            const total = (appData.sku_master || []).length || 1;
-            const parts = LAYERS.map(l => l + ' ' + cnt[l] + '个(' + (cnt[l] / total * 100).toFixed(1) + '%)');
-            return '真实分层分布（全站 ' + total + ' SKU）：' + parts.join('、') + '。结构检查：超爆/爆款/头部占比越高越好，腰部/尾部占比偏高时需推动向头部迁移（门槛见《产品定位》：超爆整月≥300/爆款150-300/头部90-150/腰部10-90/尾部<10）。';
-        }
         const w = row.weeks[0] || {};
         return '定性目标（上架/质检/协同等），无可量化数值目标；团队周报状态：' + (w.status || '—') + '。检查：' + (w.check || '无');
     }
@@ -2008,7 +2083,7 @@ function autoFillWeeklyReview() {
     o.rows.forEach((r, i) => {
         const key = 'r' + i; const data = computeOgsmFromRow(r);
         const dEl = document.getElementById('d_' + key), cEl = document.getElementById('c_' + key);
-        const defD = '完成' + (data.ok ? fmtOgsmValue(data.actual, data.unit) : '—') + '，目标' + (data.ok ? fmtOgsmValue(data.target, data.unit) : '定性') + '，进度' + (data.ok ? pct(data.progress) : '—') + (data.ok ? '，' + data.status + Math.abs(data.gapPct).toFixed(1) + '%' : '');
+        const defD = '完成' + (data.ok ? fmtOgsmValue(data.actual, data.unit) : (data.targetMissing ? fmtOgsmValue(data.actual, data.unit) : '—')) + '，目标' + (data.ok ? fmtOgsmValue(data.target, data.unit) : (data.targetMissing ? '缺失(数据源未提供)' : '定性')) + '，进度' + (data.ok ? pct(data.progress) : '—') + (data.ok ? '，' + data.status + Math.abs(data.gapPct).toFixed(1) + '%' : '');
         if (dEl) dEl.value = defD;
         if (cEl) cEl.value = buildOgsmCheck(r, data);
     });
@@ -2037,7 +2112,13 @@ function renderWeeklyReview() {
         const data = computeOgsmFromRow(r);
         const sv = saved[key] || {};
         let targetTxt, actualTxt, progTxt, statusHtml, checkTxt;
-        if (!data.ok) {
+        if (data.targetMissing) {
+            targetTxt = '<span class="tag tag-gray">目标缺失</span>';
+            actualTxt = fmtOgsmValue(data.actual, data.unit) + ' <span class="tag tag-green">真实</span>';
+            progTxt = '—';
+            statusHtml = ogsmStatusTag('缺目标');
+            checkTxt = buildOgsmCheck(r, data);
+        } else if (!data.ok) {
             targetTxt = '定性'; actualTxt = '—'; progTxt = '—';
             statusHtml = ogsmStatusTag((r.weeks[0] || {}).status || '—');
             checkTxt = buildOgsmCheck(r, data);
@@ -2048,7 +2129,9 @@ function renderWeeklyReview() {
             statusHtml = ogsmStatusTag(data.status) + ' ' + Math.abs(data.gapPct).toFixed(1) + '%';
             checkTxt = buildOgsmCheck(r, data);
         }
-        const defD = '完成' + (data.ok ? fmtOgsmValue(data.actual, data.unit) : '—') + '，目标' + (data.ok ? fmtOgsmValue(data.target, data.unit) : '定性') + '，进度' + (data.ok ? pct(data.progress) : '—') + (data.ok ? '，' + data.status + Math.abs(data.gapPct).toFixed(1) + '%' : '');
+        const defD = '完成' + (data.ok ? fmtOgsmValue(data.actual, data.unit) : (data.targetMissing ? fmtOgsmValue(data.actual, data.unit) : '—')) +
+            '，目标' + (data.ok ? fmtOgsmValue(data.target, data.unit) : (data.targetMissing ? '缺失(数据源未提供)' : '定性')) +
+            '，进度' + (data.ok ? pct(data.progress) : '—') + (data.ok ? '，' + data.status + Math.abs(data.gapPct).toFixed(1) + '%' : '');
         const defC = checkTxt;
         const d = sv.D || defD;
         const c = sv.check || defC;
@@ -2096,7 +2179,7 @@ function switchOgsmTab(tab) {
     else renderWeeklyReview();
 }
 function ogsmStatusTag(s) {
-    const m = { '滞后': 'red', '超前': 'green', '正常': 'cyan', '未开始': 'yellow', '达标': 'green', '预警': 'yellow', '严重': 'red' };
+    const m = { '滞后': 'red', '超前': 'green', '正常': 'cyan', '未开始': 'yellow', '达标': 'green', '预警': 'yellow', '严重': 'red', '缺目标': 'gray' };
     return `<span class="tag tag-${m[s] || 'yellow'}">${esc(s || '—')}</span>`;
 }
 function renderOgsmReal() {
@@ -2107,7 +2190,7 @@ function renderOgsmReal() {
         return;
     }
     const meta = document.getElementById('ogsms-real-meta');
-    if (meta) meta.textContent = (o.meta.source || '') + ' ｜ 周次：' + (o.meta.weeks || []).join(' / ');
+    if (meta) meta.textContent = (o.meta.scope ? '范围：' + o.meta.scope + ' ｜ ' : '') + (o.meta.period_label || '') + ' ｜ 来源：' + (o.meta.source || '');
     let html = `<table class="data-table ogsm-table"><thead><tr>
         <th style="min-width:84px;">板块</th><th style="min-width:110px;">目的</th>
         <th style="min-width:160px;">目标</th><th style="min-width:150px;">策略</th>
@@ -2120,9 +2203,13 @@ function renderOgsmReal() {
         const d = computeOgsmFromRow(r);
         const w = r.weeks[0] || {};
         const prog = d.ok ? `<b>${pct(d.progress)}</b>` : '—';
-        const st = d.ok ? ogsmStatusTag(d.status) + ' ' + Math.abs(d.gapPct).toFixed(1) + '%' : ogsmStatusTag(w.status);
-        const chk = d.ok ? buildOgsmCheck(r, d) : buildOgsmCheck(r, d);
-        const fillD = d.ok ? '完成' + fmtOgsmValue(d.actual, d.unit) + '，目标' + fmtOgsmValue(d.target, d.unit) + '，进度' + pct(d.progress) + '，' + d.status + Math.abs(d.gapPct).toFixed(1) + '%' : (w.D || '—');
+        const st = d.ok ? ogsmStatusTag(d.status) + ' ' + Math.abs(d.gapPct).toFixed(1) + '%' : (d.targetMissing ? ogsmStatusTag('缺目标') : ogsmStatusTag(w.status));
+        const chk = buildOgsmCheck(r, d);
+        let fillD;
+        if (d.metric === 'struct') fillD = '真实分层分布见「检查」列（超爆/爆款/头部/腰部/尾部 SKU 数）；目标=《产品定位》门槛，非单一数值目标';
+        else if (d.targetMissing) fillD = (d.metric === 'aov' ? '实际客单价' : '完成') + fmtOgsmValue(d.actual, d.unit) + '（真实），目标：缺失（数据源未提供' + (d.metric === 'aov' ? '类目级客单价' : '该类目级') + '目标）';
+        else if (d.ok) fillD = '完成' + fmtOgsmValue(d.actual, d.unit) + '，目标' + fmtOgsmValue(d.target, d.unit) + '，进度' + pct(d.progress) + '，' + d.status + Math.abs(d.gapPct).toFixed(1) + '%';
+        else fillD = (w.D || '—');
         html += `<tr>
             <td><b>${esc(r['板块'])}</b></td>
             <td style="white-space:pre-wrap;">${esc(r['目的'])}</td>
@@ -2162,7 +2249,7 @@ function generateMonthlyReview() {
         <h3 style="color:var(--radium-text-strong);margin-top:18px;">二、类目达成与环比</h3><table class="data-table"><thead><tr><th>类目</th><th>实际</th><th>目标</th><th>进度</th><th>环比(节奏)</th></tr></thead><tbody>
         ${CATS.map(c => { const d = a.by_category[c]; const mom = (appData.actuals[m].mom ? appData.actuals[m].mom.by_category[c] : 0) || 0; return `<tr><td>${c}</td><td>${fmtW(d.sales)}</td><td>${fmtW(d.target_sales)}</td><td><span class="tag tag-${cls(d.target_progress, d.time_progress)}">${pct(d.target_progress)}</span></td><td>${pct(mom)}</td></tr>`; }).join('')}</tbody></table>
         <h3 style="color:var(--radium-text-strong);margin-top:18px;">三、商品结构</h3><table class="data-table"><thead><tr><th>分层</th><th>销售额</th><th>单量</th><th>转化率</th><th>目标进度</th></tr></thead><tbody>
-        ${LAYERS.map(l => { const d = a.by_layer[l]; return `<tr><td>${l}</td><td>${fmtW(d.sales)}</td><td>${num(d.orders)}</td><td>${pct(d.conv * 100)}</td><td>${pct(d.target_progress)}</td></tr>`; }).join('')}</tbody></table>
+        ${LAYERS.map(l => { const d = a.by_layer[l]; return `<tr><td>${l}</td><td>${fmtW(d.sales)}</td><td>${num(d.orders)}</td><td>${fmtConvPlain(d.conv)}</td><td>${pct(d.target_progress)}</td></tr>`; }).join('')}</tbody></table>
         <h3 style="color:var(--radium-text-strong);margin-top:18px;">四、问题分析与下月计划</h3>
         <div style="padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;font-size:13px;line-height:1.8;">
         · 总体进度${pct(a.total.target_progress)}，相对时间进度${pct(a.time_progress)}${a.total.gap >= 0 ? '（超前达成）' : '（滞后，需追赶）'}。<br>
@@ -2685,7 +2772,7 @@ function renderAudit() {
   let passCount = 0, totalCount = 0;
 
   function recompute(scopeFn) {
-    let sales = 0, orders = 0, amtOri = 0, convNum = 0;
+    let sales = 0, orders = 0, amtOri = 0, convNum = 0, hasConv = false;
     let n = 0;
     for (const r of sk) {
       if (!scopeFn(r)) continue;
@@ -2693,9 +2780,9 @@ function renderAudit() {
       sales += (r.actual_sales || 0);
       orders += (r.actual_orders || 0);
       amtOri += (r.amount_ori || 0);
-      convNum += (r.conv || 0) * (r.actual_orders || 0);
+      if (r.conv != null) { convNum += r.conv * (r.actual_orders || 0); hasConv = true; }
     }
-    return { n, sales, orders, amtOri, aov: orders ? amtOri / orders : 0, conv: orders ? convNum / orders : 0 };
+    return { n, sales, orders, amtOri, aov: orders ? amtOri / orders : 0, conv: (hasConv && orders) ? convNum / orders : null, hasConv };
   }
   function recomputeChannel(ch) {
     let sales = 0, orders = 0;
@@ -2774,6 +2861,14 @@ function renderAudit() {
         sourceText = rec.n + ' 个SKU 的 amount_ori 与 actual_orders（原币）';
         processText = 'Σ amount_ori(原币)=¥' + Math.round(rec.amtOri).toLocaleString() + ' ÷ Σ orders=' + Math.round(rec.orders).toLocaleString() + ' = ' + rec.aov.toFixed(1);
       } else if (metric === 'conv') {
+        if (!rec.hasConv) {
+          return '<tr><td><b>转化率</b><br><span class="audit-unit">%</span></td>' +
+            '<td class="audit-src">数据源缺失：Excel 本/上周期各站点 sheet 仅有 销量/金额/渠道，无访问/UV/转化字段</td>' +
+            '<td class="audit-formula"><code>Σ(conv×orders) ÷ Σ orders</code></td>' +
+            '<td class="audit-process">无可计算数据（不伪造）</td>' +
+            '<td class="num audit-re">—</td><td class="num audit-disp">—</td>' +
+            '<td><span class="tag tag-gray">数据源缺失</span></td></tr>';
+        }
         recomputeVal = rec.conv;
         sourceText = rec.n + ' 个SKU 的 conv 与 actual_orders（订单量加权）';
         processText = 'Σ(conv×orders) ÷ Σ orders = ' + (rec.conv * 100).toFixed(2) + '%';

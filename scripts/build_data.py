@@ -20,8 +20,9 @@ SRC_XLSX = '/Users/fsw/Documents/7月飞机杯复盘数据源.xlsx'
 OUT = os.path.join(ROOT, 'js', 'data', 'data.json')
 
 SITES = ['AC美', 'BV美', 'UK英', 'EU欧']
-# 真实运营分类（来自《7月飞机杯复盘数据源》各站点本周期 运营分类 去重）
-CATS = ['飞机杯', '增大器', '震动器', '后庭', '阳具', '倒模', 'ACC', '代发']
+# 类目运营范围：本看板 = 飞机杯 + 增大器 类目运营（用户明确"不是全类目"）
+CATS = ['飞机杯', '增大器']
+FOCUS = '飞机杯+增大器'
 LAYERS = ['超爆', '爆款', '头部', '腰部', '尾部']
 # 渠道：全站统一口径（SEM / EMAIL / 直访 / SEO / 信息流 / 联盟 / 社媒 / 其他）
 CHANNELS = ['SEM', 'EMAIL', '直访', 'SEO', '信息流', '联盟', '社媒', '其他']
@@ -223,16 +224,16 @@ def build_real_master(period):
             if sales == 0 and amt_ori:
                 fb = round(amt_ori * rate, 2); ch_sales_rounded[dominant] = fb; sales = fb
             layer = layer_of(qty / PERIOD_DAYS)
-            # 转化率：真实数据源无访问/转化字段 → 演示值（标注口径待对齐）
-            conv = CONV.get(layer, .08) * (0.85 + (abs(hash(x['code'])) % 300) / 1000.0)
+            # 转化率：真实数据源无访问/转化/UV 字段 → 置空（数据源缺失，绝不伪造）
+            conv = None
             master.append({
                 'ns_code': x['code'], 'site': site, 'category': x['cat'], 'layer': layer,
                 'est_layer': layer, 'owner': x['owner'], 'change_type': '维稳',
                 'remark': '', 'target_orders': 0, 'last_month_sales': None,
                 'actual_orders': orders, 'actual_sales': round(sales, 2),
                 'amount_ori': round(amt_ori, 2),
-                'aov': round(amt_ori / qty, 1) if qty else 0,   # 原币客单价（参考）
-                'conv': round(conv, 4), 'conv_note': '演示值·口径待对齐',
+                'aov': round(amt_ori / qty, 1) if qty else 0,   # 原币客单价（参考，真实）
+                'conv': None, 'conv_note': '数据源缺失·无访问/转化字段',
                 'channel': dominant,
                 'channels': {c: {'sales': ch_sales_rounded[c], 'orders': ch_orders_int[c]} for c in CHANNELS},
                 'name': x['name'],
@@ -243,6 +244,10 @@ def build_real_master(period):
 sku_master_cur = build_real_master('本周期')
 sku_master_hist = {'6月': build_real_master('上周期')}
 
+# 类目运营范围过滤：仅保留 飞机杯 + 增大器（其余类目本看板不展示）
+sku_master_cur = [r for r in sku_master_cur if r['category'] in CATS]
+sku_master_hist = {'6月': [r for r in sku_master_hist['6月'] if r['category'] in CATS]}
+
 # 渠道占比：由真实 SKU 渠道订单聚合得到（保证校验#1/#11精确通过，且为真实分布）
 CH_SHARE = {s: {c: 0.0 for c in CHANNELS} for s in SITES}
 for r in sku_master_cur:
@@ -252,6 +257,9 @@ for r in sku_master_cur:
 for s in SITES:
     tot = sum(CH_SHARE[s].values()) or 1
     CH_SHARE[s] = {c: round(CH_SHARE[s][c] / tot, 6) for c in CHANNELS}
+    # 归一化到精确 1.0（消除 6 位四舍五入的尾差，保证校验通过）
+    diff = 1.0 - sum(CH_SHARE[s].values())
+    CH_SHARE[s][CHANNELS[-1]] = round(CH_SHARE[s][CHANNELS[-1]] + diff, 6)
 
 # 上周期销量回填（用于单品级环比）
 _prev_qty = {}
@@ -308,44 +316,56 @@ def aggregate(master, month):
         s, cat, layer = r['site'], r['category'], r['layer']
         sales, orders, conv = r['actual_sales'], r['actual_orders'], r['conv']
         tgt_o = r['target_orders']
-        tot_s += sales; tot_o += orders; tot_c += conv * orders; tot_w += orders; tot_ori += r.get('amount_ori', 0)
+        tot_s += sales; tot_o += orders
+        if conv is not None:
+            tot_c += conv * orders; tot_w += orders
+        tot_ori += r.get('amount_ori', 0)
         bs = agg['by_site'][s]
-        bs['sales'] += sales; bs['orders'] += orders; bs['conv_sum'] += conv * orders; bs['conv_w'] += orders; bs['sku_count'] += 1
+        bs['sales'] += sales; bs['orders'] += orders; bs['sku_count'] += 1
         bs['aov_ori_sum'] += r.get('amount_ori', 0)
+        if conv is not None:
+            bs['conv_sum'] += conv * orders; bs['conv_w'] += orders
         for ch in CHANNELS:
             bs['channels'][ch]['sales'] += r['channels'][ch]['sales']
             bs['channels'][ch]['orders'] += r['channels'][ch]['orders']
-            bs['channels'][ch]['conv_sum'] += conv * r['channels'][ch]['orders']
-            bs['channels'][ch]['conv_w'] += r['channels'][ch]['orders']
             bs['channels'][ch]['aov_ori_sum'] += r['channels'][ch]['sales'] / RATE[s]
             if r['channels'][ch]['orders'] > 0:
                 bs['channels'][ch]['sku_count'] += 1
+            if conv is not None:
+                bs['channels'][ch]['conv_sum'] += conv * r['channels'][ch]['orders']
+                bs['channels'][ch]['conv_w'] += r['channels'][ch]['orders']
         bs['categories'][cat]['sales'] += sales; bs['categories'][cat]['orders'] += orders; bs['categories'][cat]['sku_count'] += 1
-        bs['categories'][cat]['conv_sum'] += conv * orders; bs['categories'][cat]['conv_w'] += orders
         bs['categories'][cat]['aov_ori_sum'] += r.get('amount_ori', 0)
+        if conv is not None:
+            bs['categories'][cat]['conv_sum'] += conv * orders; bs['categories'][cat]['conv_w'] += orders
         bs['layers'][layer]['sales'] += sales; bs['layers'][layer]['orders'] += orders; bs['layers'][layer]['sku_count'] += 1
-        bs['layers'][layer]['conv_sum'] += conv * orders; bs['layers'][layer]['conv_w'] += orders
+        if conv is not None:
+            bs['layers'][layer]['conv_sum'] += conv * orders; bs['layers'][layer]['conv_w'] += orders
         bs['layers'][layer]['aov_ori_sum'] += r.get('amount_ori', 0)
         bc = agg['by_category'][cat]
         bc['sales'] += sales; bc['orders'] += orders; bc['target_orders'] += tgt_o
-        bc['conv_sum'] += conv * orders; bc['conv_w'] += orders; bc['sku_count'] += 1
+        bc['sku_count'] += 1
+        if conv is not None:
+            bc['conv_sum'] += conv * orders; bc['conv_w'] += orders
         bc['aov_ori_sum'] += r.get('amount_ori', 0)
         bc['by_site'][s]['sales'] += sales; bc['by_site'][s]['orders'] += orders; bc['by_site'][s]['sku_count'] += 1
         bc['layers'][layer]['sales'] += sales; bc['layers'][layer]['orders'] += orders; bc['layers'][layer]['sku_count'] += 1
         for ch in CHANNELS:
             bc['channels'][ch]['sales'] += r['channels'][ch]['sales']
             bc['channels'][ch]['orders'] += r['channels'][ch]['orders']
-            bc['channels'][ch]['conv_sum'] += conv * r['channels'][ch]['orders']
-            bc['channels'][ch]['conv_w'] += r['channels'][ch]['orders']
             bc['channels'][ch]['aov_ori_sum'] += r['channels'][ch]['sales'] / RATE[s]
             if r['channels'][ch]['orders'] > 0:
                 bc['channels'][ch]['sku_count'] += 1
+            if conv is not None:
+                bc['channels'][ch]['conv_sum'] += conv * r['channels'][ch]['orders']
+                bc['channels'][ch]['conv_w'] += r['channels'][ch]['orders']
         bl = agg['by_layer'][layer]
         bl['sales'] += sales; bl['orders'] += orders; bl['target_orders'] += tgt_o
-        bl['sku_count'] += 1; bl['conv_sum'] += conv * orders; bl['conv_w'] += orders
-        bl['aov_ori_sum'] += r.get('amount_ori', 0)
+        bl['sku_count'] += 1; bl['aov_ori_sum'] += r.get('amount_ori', 0)
+        if conv is not None:
+            bl['conv_sum'] += conv * orders; bl['conv_w'] += orders
         bl['by_site'][s]['sales'] += sales; bl['by_site'][s]['orders'] += orders; bl['by_site'][s]['sku_count'] += 1
-    agg['total'] = {'sales': tot_s, 'orders': tot_o, 'conv': round(tot_c / tot_w, 4) if tot_w else 0,
+    agg['total'] = {'sales': tot_s, 'orders': tot_o, 'conv': round(tot_c / tot_w, 4) if tot_w else None,
                     'aov': round(tot_ori / tot_o, 1) if tot_o else 0,   # 原币客单价(Σ原币金额/Σ单量)
                     'aov_original': round(tot_ori / tot_o, 1) if tot_o else 0, 'sku_count': len(master)}
     for s in SITES:
@@ -356,23 +376,23 @@ def aggregate(master, month):
         bs['time_progress'] = TP[month]
         bs['aov'] = round(bs['aov_ori_sum'] / bs['orders'], 1) if bs['orders'] else 0
         bs['aov_original'] = bs['aov']
-        bs['conv'] = round(bs['conv_sum'] / bs['conv_w'], 4) if bs['conv_w'] else 0
+        bs['conv'] = round(bs['conv_sum'] / bs['conv_w'], 4) if bs['conv_w'] else None
         bs['gap'] = round(bs['sales'] - tgt * bs['time_progress'] / 100.0)
         for ch in CHANNELS:
             chv = bs['channels'][ch]
-            chv['conv'] = round(chv['conv_sum'] / chv['conv_w'], 4) if chv['conv_w'] else 0
+            chv['conv'] = round(chv['conv_sum'] / chv['conv_w'], 4) if chv['conv_w'] else None
             chv['aov'] = round(chv['aov_ori_sum'] / chv['orders'], 1) if chv['orders'] else 0
             chv['aov_original'] = chv['aov']
             del chv['conv_sum']; del chv['conv_w']; del chv['aov_ori_sum']
         for c in CATS:
             cv = bs['categories'][c]
-            cv['conv'] = round(cv['conv_sum'] / cv['conv_w'], 4) if cv['conv_w'] else 0
+            cv['conv'] = round(cv['conv_sum'] / cv['conv_w'], 4) if cv['conv_w'] else None
             cv['aov'] = round(cv['aov_ori_sum'] / cv['orders'], 1) if cv['orders'] else 0
             cv['aov_original'] = cv['aov']
             del cv['conv_sum']; del cv['conv_w']; del cv['aov_ori_sum']
         for l in LAYERS:
             lv = bs['layers'][l]
-            lv['conv'] = round(lv['conv_sum'] / lv['conv_w'], 4) if lv['conv_w'] else 0
+            lv['conv'] = round(lv['conv_sum'] / lv['conv_w'], 4) if lv['conv_w'] else None
             lv['aov'] = round(lv['aov_ori_sum'] / lv['orders'], 1) if lv['orders'] else 0
             lv['aov_original'] = lv['aov']
             del lv['conv_sum']; del lv['conv_w']; del lv['aov_ori_sum']
@@ -401,18 +421,18 @@ def aggregate(master, month):
         bc['time_progress'] = TP[month]
         bc['aov'] = round(bc['aov_ori_sum'] / bc['orders'], 1) if bc['orders'] else 0
         bc['aov_original'] = bc['aov']
-        bc['conv'] = round(bc['conv_sum'] / bc['conv_w'], 4) if bc['conv_w'] else 0
+        bc['conv'] = round(bc['conv_sum'] / bc['conv_w'], 4) if bc['conv_w'] else None
         bc['gap'] = round(bc['sales'] - bc['target_sales'] * TP[month] / 100.0)
         for ch in CHANNELS:
             chv = bc['channels'][ch]
-            chv['conv'] = round(chv['conv_sum'] / chv['conv_w'], 4) if chv['conv_w'] else 0
+            chv['conv'] = round(chv['conv_sum'] / chv['conv_w'], 4) if chv['conv_w'] else None
             chv['aov'] = round(chv['aov_ori_sum'] / chv['orders'], 1) if chv['orders'] else 0
             chv['aov_original'] = chv['aov']
             del chv['conv_sum']; del chv['conv_w']; del chv['aov_ori_sum']
         del bc['conv_sum']; del bc['conv_w']; del bc['aov_ori_sum']
     for l in LAYERS:
         bl = agg['by_layer'][l]
-        bl['conv'] = round(bl['conv_sum'] / bl['conv_w'], 4) if bl['conv_w'] else 0
+        bl['conv'] = round(bl['conv_sum'] / bl['conv_w'], 4) if bl['conv_w'] else None
         bl['aov'] = round(bl['aov_ori_sum'] / bl['orders'], 1) if bl['orders'] else 0
         bl['aov_original'] = bl['aov']
         bl['target_sales'] = layer_alloc[l]
@@ -687,15 +707,17 @@ def build_sku_period():
 
 # ---------- 真实 OGSM（7月，飞机杯）----------
 def build_ogsm_july():
-    """从真实数据源 Excel（站点目标/产品定位/时间进度）构建 7月 OGSM。
-    本 Excel 即 OGSM 计划本体：站点目标=G(销售额/客单价)、产品定位=S/M(结构门槛)、
-    时间进度=时间轴。复盘=以真实本周期数据进度逐行对比这些目标，算出完成进度+检查。
-    每行 目标 字段写成可被前端解析器量化的形式（'目标：<数字>' 或 '目标：<aov>'）。"""
+    """从真实数据源 Excel（站点目标/产品定位/时间进度）构建 7月 OGSM，范围=飞机杯+增大器类目运营。
+    每行 目标 字段写成可被前端解析器量化的形式（'目标：<数字>（推导...）' 或 '目标：缺失...'）。
+    · 销售额目标：Excel 仅含站点级全类目目标 → 类目级目标按「站点目标×类目销售占比」推导（透明标注）。
+    · 客单价目标：Excel 仅含站点级，类目级缺失 → 目标留空，周复盘标注"缺少数据"。
+    · 产品结构目标：来自《产品定位》真实门槛（可计算）。"""
     try:
         wb = _wb()
     except Exception:
         return None
-    # 站点目标
+    a = aggs[CUR]
+    # 站点目标（仅用于推导类目目标）
     ws = wb['站点目标']
     site_targets = {}
     for r in range(2, ws.max_row + 1):
@@ -722,54 +744,56 @@ def build_ogsm_july():
             'month': str(wp.cell(r, 2).value or '').strip(),
             'daily': str(wp.cell(r, 3).value or '').strip(),
         })
-    # 各站点 运营负责人（取本周期实际 SKU 中出现最多的）
-    site_owner = {}
-    for s in SITES:
+    # 类目负责人（取本周期该 类目 SKU 中出现最多的 owner）
+    cat_owner = {}
+    for c in CATS:
         cnt = {}
-        for x in read_site_sheet(s, '本周期'):
-            o = (x.get('owner') or '').strip()
+        for r in sku_master_cur:
+            if r['category'] != c:
+                continue
+            o = (r.get('owner') or '').strip()
             if o:
                 cnt[o] = cnt.get(o, 0) + 1
-        site_owner[s] = max(cnt, key=cnt.get) if cnt else '—'
+        cat_owner[c] = max(cnt, key=cnt.get) if cnt else '—'
     shop_map = {'AC美': 'AC-US', 'BV美': 'BV-US', 'UK英': 'BV-UK', 'EU欧': 'EU'}
-    total_target = sum(site_targets[s]['sales'] for s in SITES)
+    layer_txt = '；'.join('%s 整月销量%s / 日均%s' % (l['name'], l['month'], l['daily']) for l in layers)
     rows = []
-    # 总目标
+    # ---- 类目销售额（目标=推导：站点目标×类目销售占比）----
+    for c in CATS:
+        tgt = a['by_category'][c]['target_sales']
+        act = a['by_category'][c]['sales']
+        rows.append({
+            '板块': c, '目的': '达成 %s 7月 类目销售额目标（类目运营核心）' % c,
+            '目标': '目标：%d（推导：站点目标×%s销售占比）' % (int(round(tgt)), c),
+            '策略': '聚焦主推单品，按时间进度 %s%% 推进' % TP[CUR],
+            '衡量': '销售额(人民币)',
+            '计划': '按时间进度 %s%% 推进；客单价目标见同类目客单价行' % TP[CUR],
+            '落地店铺': '全站', '责任人': cat_owner.get(c, '—'),
+            'weeks': [],
+        })
+    # ---- 类目合计销售额（推导）----
+    tot_tgt = sum(a['by_category'][c]['target_sales'] for c in CATS)
     rows.append({
-        '板块': '全站', '目的': '完成 7月 整体销售目标',
-        '目标': '目标：%d' % int(round(total_target)),
-        '策略': '四站点协同冲刺，按时间进度 %s%% 推进' % TP[CUR],
+        '板块': '飞机杯+增大器', '目的': '达成类目合计销售额目标',
+        '目标': '目标：%d（推导：两品类目标之和）' % int(round(tot_tgt)),
+        '策略': '双品类协同，按时间进度 %s%% 推进' % TP[CUR],
         '衡量': '销售额(人民币)', '计划': '按时间进度 %s%% 推进' % TP[CUR],
-        '落地店铺': '全站', '责任人': site_owner.get('EU欧', '刘玉辉'),
+        '落地店铺': '全站', '责任人': '%s / %s' % (cat_owner.get('飞机杯', '—'), cat_owner.get('增大器', '—')),
         'weeks': [],
     })
-    # 各站点销售额目标（量化，前端可解析）
-    for s in SITES:
-        t = site_targets.get(s, {'sales': 0, 'aov': 0})
+    # ---- 类目客单价（目标缺失：Excel 仅站点级）----
+    for c in CATS:
         rows.append({
-            '板块': s, '目的': '达成 %s 7月 销售额目标' % s,
-            '目标': '目标：%d' % int(round(t['sales'])),
-            '策略': '稳定客单价(原币)%s，按时间进度 %s%% 推进' % (t['aov'], TP[CUR]),
-            '衡量': '销售额(人民币)',
-            '计划': '客单价目标(原币) %s；按时间进度 %s%% 推进' % (t['aov'], TP[CUR]),
-            '落地店铺': shop_map.get(s, '全站'), '责任人': site_owner.get(s, '—'),
-            'weeks': [],
-        })
-    # 客单价目标（量化，前端解析为 aov 指标）
-    for s in SITES:
-        t = site_targets.get(s, {'aov': 0})
-        rows.append({
-            '板块': s, '目的': '达成 %s 客单价目标' % s,
-            '目标': '目标：%s' % t['aov'],
+            '板块': c, '目的': '达成 %s 客单价目标（原币）' % c,
+            '目标': '目标：缺失（Excel 仅含站点级客单价目标，无类目级）',
             '策略': '优化组合与定价，稳定客单价水平',
             '衡量': '客单价(原币)', '计划': '稳定客单价水平',
-            '落地店铺': shop_map.get(s, '全站'), '责任人': site_owner.get(s, '—'),
+            '落地店铺': '全站', '责任人': cat_owner.get(c, '—'),
             'weeks': [],
         })
-    # 产品结构目标（门槛在 产品定位 表；实际分层数量由前端按真实数据计算）
-    layer_txt = '；'.join('%s 整月销量%s / 日均%s' % (l['name'], l['month'], l['daily']) for l in layers)
+    # ---- 产品结构（目标=产品定位真实门槛）----
     rows.append({
-        '板块': '产品结构', '目的': '达成产品结构目标（提升超爆/爆款/头部占比）',
+        '板块': '产品结构', '目的': '达成飞机杯+增大器 产品结构目标（提升超爆/爆款/头部占比）',
         '目标': layer_txt,
         '策略': '推动腰部/尾部向头部迁移，放大爆款产出',
         '衡量': 'SKU 分层数量', '计划': '推动腰部/尾部向头部迁移',
@@ -780,9 +804,12 @@ def build_ogsm_july():
         'meta': {
             'month': '2026年7月',
             'source': '7月飞机杯复盘数据源.xlsx（站点目标 / 产品定位 / 时间进度）',
-            'weeks': [],
-            'note': '本 Excel 即 7月 OGSM 计划本体。复盘=以真实本周期数据逐行对比目标，'
-                    '系统自动计算「完成进度」与「检查」；可在表格内编辑补充。',
+            'weeks': ['2026/07/01-2026/07/15'],
+            'period_label': '本周期 2026/07/01-2026/07/15（数据天数15，时间进度 %s%%）' % TP[CUR],
+            'scope': '飞机杯 + 增大器（类目运营）',
+            'note': '本看板=飞机杯+增大器类目运营。复盘=以真实本周期数据逐行对比目标，系统自动计算「完成进度」与「检查」。'
+                    '类目级销售额目标=站点目标×类目销售占比(推导)；客单价类目级目标数据源缺失（Excel仅站点级）；'
+                    '转化率数据源缺失（Excel无访问/转化字段）→ 看板留空。',
         },
         'rows': rows,
     }
@@ -864,6 +891,35 @@ def run_validations(out):
     return {'passed': passed, 'total': total, 'checks': checks,
             'generated_at': datetime.date.today().isoformat(), 'all_pass': passed == total}
 
+# ---------- 指标可计算性声明（供前端逐项展示：该项是否真有数据源）----------
+METRIC_AVAILABILITY = {
+    'sales': {'computable': True, 'scope': '全站/站点/类目/分层/渠道',
+              'source': 'Excel《本周期{站点}》金额(原币)×汇率（真实）',
+              'note': '可计算'},
+    'orders': {'computable': True, 'scope': '全站/站点/类目/分层/渠道',
+               'source': 'Excel《本周期{站点}》合计销量(列7)，或各渠道销量求和（真实）',
+               'note': '可计算'},
+    'aov_original': {'computable': True, 'scope': '全站/站点/类目/分层/渠道',
+                     'source': 'Σ 原币金额 ÷ Σ 单量（真实）',
+                     'note': '可计算（原币客单价）'},
+    'conv': {'computable': False, 'scope': '全站/站点/类目/分层/渠道',
+             'source': '【缺失】Excel 无 访问/UV/转化 字段',
+             'note': '数据源缺失·无法计算·看板留空'},
+    'conv_target': {'computable': False, 'scope': '站点/类目',
+                    'source': '【缺失】Excel《站点目标》仅 4 站点各 1 个客单价目标；类目级客单价目标未提供。转化率目标仅 BV美 0.016（来自历史规则表）',
+                    'note': '数据源缺失·类目级目标无法计算·看板留空'},
+    'sku_count': {'computable': True, 'scope': '全站/站点/类目/分层/渠道',
+                  'source': 'sku_master 命中行数（真实）', 'note': '可计算'},
+    'target_sales': {'computable': True, 'scope': '全站/站点；类目/分层为推导',
+                     'source': '站点：Excel《站点目标》直接取值；类目/分层：站点目标×该板块销售额占比（推导，已标注）',
+                     'note': '站点级可计算；类目/分层为推导值'},
+    'target_progress': {'computable': True, 'scope': '全站/站点/类目/分层',
+                        'source': '实际销售额 ÷ 目标销售额 × 100', 'note': '可计算'},
+    'struct_target': {'computable': True, 'scope': '产品结构',
+                      'source': 'Excel《产品定位》门槛（超爆整月≥300/爆款150-300/头部90-150/腰部10-90/尾部<10）',
+                      'note': '可计算（真实门槛）'},
+}
+
 # ---------- 指标来源公式（供前端「数据核对」页逐项展示真实计算来源）----------
 METRIC_FORMULAS = {
     'sales': {'name': '销售额', 'unit': '人民币元',
@@ -877,7 +933,7 @@ METRIC_FORMULAS = {
                      'source': '原始字段 sku_master[].amount_ori、actual_orders'},
     'conv': {'name': '转化率', 'unit': '%',
              'formula': 'Σ(conv×orders) ÷ Σ orders —— 订单量加权平均转化率',
-             'source': '原始字段 sku_master[].conv、actual_orders'},
+             'source': '【数据源缺失】Excel 本/上周期各站点 sheet 仅有 销量/金额/渠道，无访问/UV/转化字段；当前 conv 置空（不伪造）'},
     'sku_count': {'name': 'SKU数', 'unit': '个',
                   'formula': 'COUNT(sku_master 行) —— 当前板块命中的SKU数量',
                   'source': '原始：sku_master 行数（按板块过滤）'},
@@ -902,6 +958,7 @@ out = {
     'ogsm_config': build_ogsm_config(CUR),
     'ogsm_july': build_ogsm_july(),
     'formulas': METRIC_FORMULAS,
+    'metric_availability': METRIC_AVAILABILITY,
     'strategies': prev.get('strategies', []), 'records': prev.get('records', []),
     'price_targets': PC['price_targets'], 'conv_targets': PC['conv_targets'], 'struct_targets': prev.get('struct_targets', {}),
     'stats': prev.get('stats', {}),

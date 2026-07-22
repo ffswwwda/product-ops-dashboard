@@ -43,12 +43,6 @@
         <div class="sidebar-nav-item" data-page="category" data-sub="all">全部分类汇总</div>
         <div class="sidebar-nav-item" data-page="category" data-sub="飞机杯">飞机杯</div>
         <div class="sidebar-nav-item" data-page="category" data-sub="增大器">增大器</div>
-        <div class="sidebar-nav-item" data-page="category" data-sub="震动器">震动器</div>
-        <div class="sidebar-nav-item" data-page="category" data-sub="后庭">后庭</div>
-        <div class="sidebar-nav-item" data-page="category" data-sub="阳具">阳具</div>
-        <div class="sidebar-nav-item" data-page="category" data-sub="倒模">倒模</div>
-        <div class="sidebar-nav-item" data-page="category" data-sub="ACC">ACC</div>
-        <div class="sidebar-nav-item" data-page="category" data-sub="代发">代发</div>
 
         <div class="sidebar-section-title">商品（按结构层）</div>
         <div class="sidebar-nav-item" data-page="product" data-sub="all">全部商品</div>
@@ -94,6 +88,10 @@
                     <p class="page-subtitle" id="site-summary-sub">4 店铺合并 · 目标 × 实际 × 时间进度 核心指标</p></div>
                 <div class="page-actions"><span class="tag tag-cyan" id="site-summary-badge"></span></div>
             </div>
+            <details class="calc-note" open>
+                <summary>计算说明 · 本板块数据如何计算（数据源 / 口径 / 算不出来的留空）</summary>
+                <div id="calc-note-site"></div>
+            </details>
             <div id="site-summary-cards" style="margin-top:8px;"></div>
             <div class="grid-2" style="margin-top:20px;">
                 <div class="card"><div class="card-header"><div class="card-title">站点完成销售额排行</div></div>
@@ -174,7 +172,11 @@
         <!-- ============ 类目 - 全部分类汇总 ============ -->
         <section id="page-category-all" class="page-section" style="display:none;">
             <div class="page-header"><div><h1 class="page-title">全部分类汇总</h1>
-                <p class="page-subtitle" id="category-summary-sub">类目 目标 × 实际 × 进度 × 环比 汇总</p></div></div>
+                <p class="page-subtitle" id="category-summary-sub">类目 目标 × 实际 × 进度 × 环比 汇总（仅 飞机杯 + 增大器）</p></div></div>
+            <details class="calc-note" open>
+                <summary>计算说明 · 本板块数据如何计算（数据源 / 口径 / 算不出来的留空）</summary>
+                <div id="calc-note-category"></div>
+            </details>
             <div class="filter-bar">
                 <div class="filter-group"><span class="filter-label">店铺</span>
                     <select class="filter-select" id="category-shop"><option>全部店铺</option><option>AC美</option><option>BV美</option><option>UK英</option><option>EU欧</option></select></div>
@@ -229,8 +231,12 @@
         <!-- ============ 商品 - 全部商品 ============ -->
         <section id="page-product-all" class="page-section" style="display:none;">
             <div class="page-header"><div><h1 class="page-title">全部商品</h1>
-                <p class="page-subtitle">按店铺 / 商品结构层查看定位销售额与目标完成；单品可点开深度</p></div>
+                <p class="page-subtitle">按店铺 / 商品结构层查看定位销售额与目标完成（仅 飞机杯 + 增大器）；单品可点开深度</p></div>
                 <div class="page-actions"><button class="btn btn-secondary" onclick="switchPage('product','focus')">重点单品监控</button></div></div>
+            <details class="calc-note" open>
+                <summary>计算说明 · 本板块数据如何计算（数据源 / 口径 / 算不出来的留空）</summary>
+                <div id="calc-note-product"></div>
+            </details>
             <div class="filter-bar">
                 <div class="filter-group"><span class="filter-label">店铺</span>
                     <select class="filter-select" id="product-shop"><option>全部店铺</option><option>AC美</option><option>BV美</option><option>UK英</option><option>EU欧</option></select></div>
@@ -297,7 +303,7 @@
                 <div class="filter-group"><span class="filter-label">时间范围</span><select class="filter-select" id="ops-period"><option>本月</option><option>近7天</option><option>近30天</option><option>自定义</option></select></div>
                 <div class="filter-group"><span class="filter-label">月份</span><select class="filter-select" id="ops-month"><option>全部</option></select></div>
                 <div class="filter-group"><span class="filter-label">负责人</span><select class="filter-select" id="ops-owner"><option>全部</option></select></div>
-                <div class="filter-group"><span class="filter-label">类目</span><select class="filter-select" id="ops-category"><option>全部</option><option>飞机杯</option><option>增大器</option><option>震动器</option><option>后庭</option><option>阳具</option><option>倒模</option><option>ACC</option><option>代发</option></select></div>
+                <div class="filter-group"><span class="filter-label">类目</span><select class="filter-select" id="ops-category"><option>全部</option><option>飞机杯</option><option>增大器</option></select></div>
                 <span id="ops-count" style="margin-left:auto;font-size:12px;color:var(--radium-text-muted);"></span>
             </div>
             <div class="card"><div class="card-body"><table class="data-table">
@@ -463,7 +469,7 @@
                         <div><label style="font-size:13px;color:var(--radium-text-muted);margin-bottom:8px;display:block;">站点</label>
                             <select class="filter-select" style="width:100%;" id="strategy-site"><option>AC美</option><option>BV美</option><option>UK英</option><option>EU欧</option></select></div>
                         <div><label style="font-size:13px;color:var(--radium-text-muted);margin-bottom:8px;display:block;">类目</label>
-                            <select class="filter-select" style="width:100%;" id="strategy-category"><option>飞机杯</option><option>增大器</option><option>震动器</option><option>后庭</option><option>阳具</option><option>倒模</option><option>ACC</option><option>代发</option></select></div>
+                            <select class="filter-select" style="width:100%;" id="strategy-category"><option>飞机杯</option><option>增大器</option></select></div>
                         <div><label style="font-size:13px;color:var(--radium-text-muted);margin-bottom:8px;display:block;">我的想法</label>
                             <textarea class="filter-select" style="width:100%;height:100px;resize:vertical;padding:10px;" id="strategy-idea" placeholder="请输入运营想法、目标或问题..."></textarea></div>
                         <button class="btn btn-primary" style="width:100%;justify-content:center;" onclick="generateStrategy()">生成策略建议</button>
