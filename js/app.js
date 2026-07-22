@@ -565,6 +565,8 @@ function expandScope(scopeStr) {
     const lab = (m) => METRIC_CN[m] || m;
     const parts = (scopeStr || '').split(':');
     const t = parts[0];
+    // appData.channels 是全站点共享的渠道列表（数组），不按站点分
+    const CHS = (Array.isArray(appData.channels) && appData.channels.length) ? appData.channels : [];
     const items = [];
     if (t === 'total') {
         [...M4, 'conv'].forEach(m => items.push({ label: '全站·' + lab(m), type: 'total', metric: m }));
@@ -587,14 +589,14 @@ function expandScope(scopeStr) {
         const s = parts[1], ch = parts[2];
         M2.forEach(m => items.push({ label: s + '·渠道·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m }));
     } else if (t === 'site-channel-chart') {
-        SITES.forEach(s => (appData.channels[s] || []).forEach(ch => M2.forEach(m => items.push({ label: s + '·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m }))));
+        SITES.forEach(s => CHS.forEach(ch => M2.forEach(m => items.push({ label: s + '·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m }))));
     } else if (t === 'site-cat-chart') {
         SITES.forEach(s => CATS.forEach(c => M4.forEach(m => items.push({ label: s + '·' + c + '·' + lab(m), type: 'cat-site', site: s, cat: c, metric: m }))));
     } else if (t === 'site-layer-chart') {
         SITES.forEach(s => LAYERS.forEach(l => M4.forEach(m => items.push({ label: s + '·分层·' + l + '·' + lab(m), type: 'layer', key: l, metric: m }))));
     } else if (t === 'shop-channel-chart') {
         const s = parts[1];
-        (appData.channels[s] || []).forEach(ch => M2.forEach(m => items.push({ label: s + '·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m })));
+        CHS.forEach(ch => M2.forEach(m => items.push({ label: s + '·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m })));
     } else if (t === 'shop-cat-chart') {
         const s = parts[1];
         CATS.forEach(c => M4.forEach(m => items.push({ label: s + '·' + c + '·' + lab(m), type: 'cat-site', site: s, cat: c, metric: m })));
@@ -606,12 +608,12 @@ function expandScope(scopeStr) {
         // structure
         LAYERS.forEach(l => M2.forEach(m => items.push({ label: c + '·分层·' + l + '·' + lab(m), type: 'layer', key: l, metric: m })));
         // channel
-        (appData.channels[s] || []).forEach(ch => M2.forEach(m => items.push({ label: s + '·' + c + '·渠道·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m })));
+        CHS.forEach(ch => M2.forEach(m => items.push({ label: s + '·' + c + '·渠道·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m })));
         // shop = 跨店铺汇总
         M4.forEach(m => items.push({ label: c + '·全店铺·' + lab(m), type: 'category', key: c, metric: m }));
     } else if (t === 'site-breakdown') {
         // 渠道/类目/分层明细表：3 类 × 全部
-        SITES.forEach(s => (appData.channels[s] || []).forEach(ch => M2.forEach(m => items.push({ label: s + '·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m }))));
+        SITES.forEach(s => CHS.forEach(ch => M2.forEach(m => items.push({ label: s + '·' + ch + '·' + lab(m), type: 'channel', site: s, key: ch, metric: m }))));
         SITES.forEach(s => CATS.forEach(c => M4.forEach(m => items.push({ label: s + '·' + c + '·' + lab(m), type: 'cat-site', site: s, cat: c, metric: m }))));
         SITES.forEach(s => LAYERS.forEach(l => M4.forEach(m => items.push({ label: s + '·分层·' + l + '·' + lab(m), type: 'layer', key: l, metric: m }))));
     } else if (t === 'cat-shop-chart') {
