@@ -255,7 +255,7 @@
             </div>
             <div class="card" style="margin-top:20px;">
                 <div class="card-header"><div class="card-title">结构层四维指标明细</div><div class="card-subtitle">销售额 / 单量 / SKU数量 / 均价</div></div>
-                <div class="card-body"><div style="overflow-x:auto;"><table class="data-table">
+                <div class="card-body"><div id="product-batch-btn" style="margin-bottom:10px;"></div><div style="overflow-x:auto;"><table class="data-table">
                     <thead><tr><th>结构层</th><th class="num">销售额</th><th class="num">单量</th><th class="num">SKU数量</th><th class="num">均价</th><th class="num">目标销售额</th><th class="num">目标单量</th><th>核对</th></tr></thead>
                     <tbody id="product-dimension-body"></tbody></table></div></div>
             </div>
@@ -403,39 +403,40 @@
 
         <!-- ============ OGSM 周复盘 ============ -->
         <section id="page-review-ogsms" class="page-section" style="display:none;">
-            <div class="page-header"><div><h1 class="page-title">OGSM 周复盘 / 7月计划</h1>
-                <p class="page-subtitle">「真实OGSM」为商品部7月飞机杯实际计划与周进度（CSV直填）；「生成周复盘」驱动真实7月OGSM逐行解析目标，自动计算完成进度与检查项</p></div>
-            <div style="display:flex;gap:8px;margin-bottom:16px;">
+            <!-- 表格上方小字标题（用户要求：小字即可，不要占左/占右挤压表格） -->
+            <div class="ogsm-page-head">
+                <span class="ogsm-page-title">OGSM 周复盘 / 7月计划</span>
+                <span class="ogsm-page-sub">「真实OGSM」为商品部7月飞机杯实际计划与周进度（CSV直填）；「生成周复盘」驱动真实7月OGSM逐行解析目标，自动计算完成进度与检查项</span>
+            </div>
+            <div class="ogsm-tab-bar">
                 <button class="ogsm-tab active" id="ogsm-tab-real" onclick="switchOgsmTab('real')">真实OGSM（7月）</button>
                 <button class="ogsm-tab" id="ogsm-tab-gen" onclick="switchOgsmTab('gen')">生成周复盘（模板）</button>
             </div>
-            <!-- 真实 OGSM -->
+            <!-- 真实 OGSM：标题+meta+按钮全部置表格上方一行 -->
             <div id="ogsms-real-wrap">
-                <div class="card"><div class="card-header"><div class="card-title">商品部 2026年7月 OGSM（飞机杯）</div>
-                    <div class="card-subtitle" id="ogsms-real-meta"></div></div>
-                    <div class="card-body" style="padding:20px;">
-                        <div class="filter-bar" style="margin-bottom:16px;">
-                            <button class="btn btn-secondary" onclick="copyOgsmReal()">复制内容</button>
-                        </div>
-                        <div id="ogsms-real" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">加载中…</div></div></div>
-                    </div></div>
+                <div class="ogsm-table-head">
+                    <span class="ogsm-table-title">商品部 2026年7月 OGSM（飞机杯）</span>
+                    <span class="ogsm-table-meta" id="ogsms-real-meta"></span>
+                    <button class="btn btn-secondary ogsm-copy-btn" onclick="copyOgsmReal()">复制内容</button>
+                </div>
+                <div id="ogsms-real" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">加载中…</div></div></div>
             </div>
             <!-- 生成周复盘 -->
             <div id="ogsms-gen-wrap" style="display:none;">
-                <div class="card"><div class="card-header"><div class="card-title">生成周复盘（驱动真实7月OGSM）</div>
-                    <div class="card-subtitle">逐行解析真实OGSM目标值，前端实时计算完成进度与交叉检查项；可编辑D/检查并存本地</div></div>
-                    <div class="card-body" style="padding:20px;">
-                        <div class="filter-bar" style="margin-bottom:20px;">
-                            <div class="filter-group"><span class="filter-label">选择周期</span>
-                                <select class="filter-select" id="ogsms-week"><option>第4周</option><option>第3周</option><option>第2周</option><option>第1周</option></select></div>
-                            <button class="btn btn-primary" onclick="renderWeeklyReview()">生成/填写周复盘</button>
-                            <button class="btn btn-secondary" onclick="autoFillWeeklyReview()">自动填写完成D与检查</button>
-                            <button class="btn btn-secondary" onclick="saveWeeklyReview()">保存填写</button>
-                            <button class="btn btn-secondary" onclick="copyOGSMContent()">复制内容</button>
-                        </div>
-                        <div id="ogsms-report" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">点击生成周复盘</div>
-                            <div class="empty-state-desc">系统将根据 OGSM配置 渲染表格，并自动填写完成D与检查字段</div></div></div>
-                    </div></div>
+                <div class="ogsm-table-head">
+                    <span class="ogsm-table-title">生成周复盘（驱动真实7月OGSM）</span>
+                    <span class="ogsm-table-meta">逐行解析真实OGSM目标值，前端实时计算完成进度与交叉检查项；可编辑D/检查并存本地</span>
+                </div>
+                <div class="filter-bar" style="margin-bottom:20px;">
+                    <div class="filter-group"><span class="filter-label">选择周期</span>
+                        <select class="filter-select" id="ogsms-week"><option>第4周</option><option>第3周</option><option>第2周</option><option>第1周</option></select></div>
+                    <button class="btn btn-primary" onclick="renderWeeklyReview()">生成/填写周复盘</button>
+                    <button class="btn btn-secondary" onclick="autoFillWeeklyReview()">自动填写完成D与检查</button>
+                    <button class="btn btn-secondary" onclick="saveWeeklyReview()">保存填写</button>
+                    <button class="btn btn-secondary" onclick="copyOGSMContent()">复制内容</button>
+                </div>
+                <div id="ogsms-report" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">点击生成周复盘</div>
+                    <div class="empty-state-desc">系统将根据 OGSM配置 渲染表格，并自动填写完成D与检查字段</div></div></div>
             </div>
         </section>
 

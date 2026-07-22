@@ -590,6 +590,16 @@ body::after {
     border-color: transparent;
 }
 
+/* OGSM 页面小字标题（用户要求：放表格上方，小字即可，不再占左/右挤压表格） */
+.ogsm-page-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; padding: 0 4px; }
+.ogsm-page-title { font-size: 14px; font-weight: 600; color: var(--radium-text-strong); }
+.ogsm-page-sub { font-size: 11.5px; color: var(--radium-text-muted); line-height: 1.5; }
+.ogsm-tab-bar { display: flex; gap: 8px; margin-bottom: 14px; }
+.ogsm-table-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 8px 4px 10px; border-bottom: 1px solid var(--radium-border); margin-bottom: 10px; }
+.ogsm-table-title { font-size: 13px; font-weight: 600; color: var(--radium-text-strong); }
+.ogsm-table-meta { font-size: 11.5px; color: var(--radium-text-muted); flex: 1 1 auto; min-width: 200px; line-height: 1.5; }
+.ogsm-copy-btn { margin-left: auto; padding: 5px 12px; font-size: 12px; }
+
 /* ===== OGSM 复盘表 ===== */
 /* OGSM 真实数据 + 生成周复盘 → 真表格（列头 thead 顶部）
    策略：table-layout:fixed + colgroup 百分比 + 单元格 line-clamp 折行 + 外层横向滚动兜底
@@ -695,8 +705,6 @@ body::after {
 .calc-table th, .calc-table td { padding: 7px 10px; vertical-align: top; }
 .calc-table td { line-height: 1.5; }
 .calc-note-tip { font-size: 11.5px; color: #94a3b8; margin: 10px 0 2px; line-height: 1.6; }
-/* 兼容：旧的 .ogsm-table 类不再使用，但保留 td 样式以防遗留 */
-.ogsm-table { display: none; }
 
 /* ===== 标签 ===== */
 .tag {

@@ -560,6 +560,32 @@ function verifyData(scope) {
     const r = _VR.run(scope);
     showVerifyModal(r);
 }
+// 批量核对：一次跑完一个板块的全部有数据展示的指标（应对"逐个加按钮"的质疑 → 系统化）
+// items: [{label, type, key, metric}]
+function verifyBatch(title, items) {
+    let modal = document.getElementById('verify-modal');
+    if (!modal) { showVerifyModal({ title: '', steps: [] }); modal = document.getElementById('verify-modal'); }
+    document.getElementById('vm-title').textContent = '批量核对 · ' + title;
+    const body = document.getElementById('vm-body');
+    let html = '<div style="font-size:12px;color:var(--radium-text-muted);margin-bottom:10px;line-height:1.6;">本板块 ' + items.length + ' 项指标全部按真实数据从 sku_master 重算；过程+准确率如下，差异按占比染色（绿&lt;0.1%/青&lt;1%/黄&lt;5%/红≥5%/灰=数据源缺失）</div>';
+    items.forEach(it => {
+        const r = _VR.run({ type: it.type, key: it.key, metric: it.metric });
+        const lastRes = r.steps.filter(s => s.isResult).pop();
+        const tone = lastRes ? (lastRes.tone || 'green') : 'green';
+        html += '<div style="border:1px solid var(--radium-border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:rgba(255,255,255,.02);">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">';
+        html += '<span style="font-weight:600;font-size:13px;color:var(--radium-text-strong);">' + esc(it.label) + '</span>';
+        if (lastRes) html += '<span class="vm-result vm-' + tone + '" style="padding:3px 10px;border-radius:6px;font-size:11.5px;">' + lastRes.value + '</span>';
+        html += '</div>';
+        html += '<div style="font-size:11.5px;color:var(--radium-text-muted);line-height:1.7;display:flex;flex-direction:column;gap:4px;">';
+        r.steps.filter(s => !s.isResult).forEach(s => {
+            html += '<div><span style="color:var(--radium-text-strong);">' + esc(s.label) + '：</span>' + s.value + '</div>';
+        });
+        html += '</div></div>';
+    });
+    body.innerHTML = html;
+    modal.classList.add('open');
+}
 function showVerifyModal(r) {
     let modal = document.getElementById('verify-modal');
     if (!modal) {
@@ -579,6 +605,9 @@ function showVerifyModal(r) {
     }).join('');
     modal.classList.add('open');
 }
+
+// 批量核对 items 暂存（3 大板块每次 render 覆盖一次，HTML onclick 读 _BAT.X）
+window._BAT = window._BAT || { site: null, category: null, product: null };
 
 /* ----------------- 加载 ----------------- */
 /* ----------------- 加载 ----------------- */
@@ -725,12 +754,21 @@ function renderSiteAll() {
     let aovNum = 0, aovDen = 0;
     SITES.forEach(s => { const ta = (appData.price_targets || {})[s] || 0; aovNum += A.by_site[s].sales * ta; aovDen += A.by_site[s].sales; });
     const blendedAovTarget = aovDen ? aovNum / aovDen : 0;
+    // 批量核对 items：站点板块（全站 4 metric + 4 站点 sales = 8 项）
+    window._BAT.site = [
+        { label: '全站 销售额', type: 'total', metric: 'sales' },
+        { label: '全站 单量', type: 'total', metric: 'orders' },
+        { label: '全站 客单价', type: 'total', metric: 'aov' },
+        { label: '全站 转化率', type: 'total', metric: 'conv' },
+        ...SITES.map(s => ({ label: s + ' 销售额', type: 'site', key: s, metric: 'sales' }))
+    ];
     document.getElementById('site-summary-cards').innerHTML = targetHeroHTML({
         scope: '销售额', target: tgt, actual: t.sales, orders: t.orders, aov: t.aov,
         target_aov: blendedAovTarget, target_conv: null,
         mom: A.mom.total, momLabel: '全站环比', title: '全部站点 · 目标对照总览',
         meta: `${SITES.length} 店铺合并`
     }) + `<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+        <button class="btn-verify" style="background:linear-gradient(135deg,rgba(99,102,241,.25),rgba(34,211,238,.18));border:1px solid rgba(99,102,241,.45);font-weight:600;" onclick="verifyBatch('站点板块', _BAT.site)" title="一次跑完站点板块全部指标的核对（系统化覆盖，非手工逐个）">批量核对站点板块（${window._BAT.site.length}项）</button>
         <button class="btn-verify" onclick="verifyData({type:'total',metric:'sales'})">核对总销售额</button>
         <button class="btn-verify" onclick="verifyData({type:'total',metric:'orders'})">核对总单量</button>
         <button class="btn-verify" onclick="verifyData({type:'total',metric:'aov'})">核对总客单价</button>
@@ -916,6 +954,11 @@ function switchProductMetric(m) {
  * =================================================================== */
 function renderCategoryAll() {
     const shop = document.getElementById('category-shop').value;
+    // 批量核对 items：类目板块（2 类目 × sales/orders = 4 项）
+    window._BAT.category = [
+        ...CATS.map(c => ({ label: c + ' 销售额', type: 'category', key: c, metric: 'sales' })),
+        ...CATS.map(c => ({ label: c + ' 单量', type: 'category', key: c, metric: 'orders' }))
+    ];
     let rows = '';
     CATS.forEach(c => {
         const d = A.by_category[c];
@@ -930,7 +973,7 @@ function renderCategoryAll() {
             <div class="stat-card-sub">环比 ${pct(A.mom.by_category[c])} ${A.mom.by_category[c] >= 0 ? '' : ''} · 单量 ${num(d.orders)}</div>
         </div>`;
     });
-    document.getElementById('category-cards').innerHTML = rows;
+    document.getElementById('category-cards').innerHTML = '<div style="margin-bottom:12px;"><button class="btn-verify" style="background:linear-gradient(135deg,rgba(99,102,241,.25),rgba(34,211,238,.18));border:1px solid rgba(99,102,241,.45);font-weight:600;" onclick="verifyBatch(\'类目板块\', _BAT.category)" title="一次跑完类目板块全部指标的核对">批量核分类目板块（' + window._BAT.category.length + '项）</button></div>' + rows;
     // 分店铺类目进度(分组柱)
     const csc = safeInit('category-shop-chart');
     csc.setOption({ tooltip: { trigger: 'axis' }, __unit: 'sales', legend: { data: CATS, textStyle: { color: '#94a3b8' } },
@@ -1029,6 +1072,10 @@ function renderProductAll() {
     const metric = state.productMetric || 'sales';
     const def = METRIC_DEF[metric];
     const list = (appData.sku_master || []).filter(r => (shop === '全部店铺' || r.site === shop) && (layerF === '全部层级' || r.layer === layerF));
+    // 批量核对 items：商品结构层板块（5 层 × sales = 5 项）
+    window._BAT.product = LAYERS.map(l => ({ label: l + ' 销售额', type: 'layer', key: l, metric: 'sales' }));
+    const batchBtn = document.getElementById('product-batch-btn');
+    if (batchBtn) batchBtn.innerHTML = '<button class="btn-verify" style="background:linear-gradient(135deg,rgba(99,102,241,.25),rgba(34,211,238,.18));border:1px solid rgba(99,102,241,.45);font-weight:600;" onclick="verifyBatch(\'商品结构层板块\', _BAT.product)" title="一次跑完商品结构层板块全部指标的核对">批量核对商品结构层（' + window._BAT.product.length + '项）</button>';
     document.getElementById('product-structure-title').textContent = '商品结构层' + def.label + '（实际）';
     document.getElementById('product-trend-title').textContent = '结构层实际 vs 目标结构（' + def.label + '）';
     // 结构图：按指标用柱状图
@@ -2403,7 +2450,8 @@ function renderOgsmReal() {
     }
     const meta = document.getElementById('ogsms-real-meta');
     if (meta) meta.textContent = (o.meta.scope ? '范围：' + o.meta.scope + ' ｜ ' : '') + (o.meta.period_label || '') + ' ｜ 来源：' + (o.meta.source || '');
-    // 真表格：列头在 thead 顶部，table-layout:fixed + 百分比列宽，避免被压歪或截断
+    // 真表格：列序严格按 csv-ogsm 原序（板块/目的/目标/策略/衡量/计划/店铺/责任人/D/状态/C/下一步计划/核对）
+    // 删"进度"列（已在 fillD 字符串内表达，不重复占位）
     const cols = [
         { w: '5%',  t: '板块' },
         { w: '8%',  t: '目的' },
@@ -2414,23 +2462,24 @@ function renderOgsmReal() {
         { w: '7%',  t: '店铺' },
         { w: '6%',  t: '责任人' },
         { w: '14%', t: '完成 D' },
-        { w: '6%',  t: '进度' },
         { w: '6%',  t: '状态' },
         { w: '11%', t: '检查 C' },
+        { w: '6%',  t: '下一步计划' },
         { w: '4%',  t: '核对' }
     ];
     let html = `<table class="data-table ogsm-table"><colgroup>${cols.map(c => '<col style="width:' + c.w + '">').join('')}</colgroup><thead><tr>${cols.map(c => '<th>' + c.t + '</th>').join('')}</tr></thead><tbody>`;
     o.rows.forEach((r, idx) => {
         const d = computeOgsmFromRow(r);
         const w = r.weeks[0] || {};
-        const prog = d.ok ? '<b>' + pct(d.progress) + '</b>' : '—';
+        const prog = d.ok ? pct(d.progress) : '—';
         const st = d.ok ? ogsmStatusTag(d.status) + ' ' + Math.abs(d.gapPct).toFixed(1) + '%' : (d.targetMissing ? ogsmStatusTag('缺目标') : ogsmStatusTag(w.status));
         const chk = buildOgsmCheck(r, d);
         let fillD;
         if (d.metric === 'struct') fillD = '真实分层分布见「检查」列（超爆/爆款/头部/腰部/尾部 SKU 数）；目标=《产品定位》门槛，非单一数值目标';
         else if (d.targetMissing) fillD = (d.metric === 'aov' ? '实际客单价' : '完成') + fmtOgsmValue(d.actual, d.unit) + '（真实），目标：缺失（数据源未提供' + (d.metric === 'aov' ? '类目级客单价' : '该类目级') + '目标）';
-        else if (d.ok) fillD = '完成' + fmtOgsmValue(d.actual, d.unit) + '，目标' + fmtOgsmValue(d.target, d.unit) + '，进度' + pct(d.progress) + '，' + d.status + Math.abs(d.gapPct).toFixed(1) + '%';
+        else if (d.ok) fillD = '完成' + fmtOgsmValue(d.actual, d.unit) + '，目标' + fmtOgsmValue(d.target, d.unit) + '，进度' + prog + '，' + d.status + Math.abs(d.gapPct).toFixed(1) + '%';
         else fillD = (w.D || '—');
+        const nextTxt = w.next || w.下一步 || '—';
         html += '<tr>' +
             '<td><b>' + esc(r['板块']) + '</b></td>' +
             '<td class="ogc-cell">' + esc(r['目的'] || '') + '</td>' +
@@ -2441,9 +2490,9 @@ function renderOgsmReal() {
             '<td>' + esc(r['落地店铺'] || '—') + '</td>' +
             '<td>' + esc(r['责任人'] || '—') + '</td>' +
             '<td class="ogc-fillD">' + esc(fillD) + '</td>' +
-            '<td class="ogc-prog">' + prog + '</td>' +
             '<td>' + st + '</td>' +
             '<td class="ogc-check">' + esc(chk) + '</td>' +
+            '<td class="ogc-cell">' + esc(nextTxt) + '</td>' +
             '<td><button class="btn-verify" onclick="verifyData({type:\'ogsm\',idx:' + idx + '})" title="按真实数据逐项重算 + 准确率">核对</button></td>' +
         '</tr>';
     });
