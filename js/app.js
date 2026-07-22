@@ -1880,7 +1880,8 @@ function closeOgsmConfig() { document.getElementById('ogsm-config-modal').style.
 
 function fmtOgsmValue(v, unit) {
     if (unit === 'money') return fmtW(v);
-    if (unit === 'percent') return pct(v);
+    if (unit === 'money2') return (v == null ? '—' : Number(v).toFixed(1));
+    if (unit === 'pct' || unit === 'percent') return pct(v);
     return num(v);
 }
 /* ---------- OGSM 生成周复盘：驱动真实 7月 OGSM ---------- */
@@ -1903,9 +1904,11 @@ function parseOgsmRow(row) {
     let metric = 'sales', target = 0, ok = false;
     const mConv = text.match(/转化率[^\d]*(\d+(?:\.\d+)?)\s*%/);
     const mOrd = text.match(/单量[^\d]*(\d+(?:\.\d+)?)/);
+    const mAov = text.match(/(?:客单价|均价|原币客单价)[^\d]*(\d+(?:\.\d+)?)/);
     const mSales = text.match(/目标[：:]\s*([\d,]+(?:\.\d+)?)/);
     if (mConv) { metric = 'conv'; target = parseFloat(mConv[1]); ok = true; }
     else if (mOrd) { metric = 'orders'; target = parseFloat(mOrd[1]); ok = true; }
+    else if (mAov) { metric = 'aov'; target = parseFloat(mAov[1]); ok = true; }
     else if (mSales) { metric = 'sales'; target = parseFloat(mSales[1].replace(/,/g, '')); ok = true; }
     return { ok, metric, target, cat, shops };
 }
@@ -1927,22 +1930,48 @@ function getWeightedConv(shops, cat) {
     });
     return w ? c / w : 0;
 }
+// 加权原币客单价 = Σ原币金额 / Σ单量（仅统计有 amount_ori 的 SKU）
+function getWeightedAov(shops, cat) {
+    let ori = 0, o = 0;
+    (appData.sku_master || []).forEach(s => {
+        if (shops.indexOf(s.site) < 0) return;
+        if (cat && s.category !== cat) return;
+        ori += (s.amount_ori || 0); o += (s.actual_orders || 0);
+    });
+    return o ? ori / o : 0;
+}
 function computeOgsmFromRow(row) {
     const p = parseOgsmRow(row);
     if (!p.ok) return { ok: false, shops: p.shops, cat: p.cat };
     const tp = state.timeProgress;
-    let actual = 0, unit = 'money';
+    let actual = 0, unit = 'money', timeBound = true;
     if (p.metric === 'sales') { actual = _ogsmCross(p.shops, p.cat, 'sales'); }
     else if (p.metric === 'orders') { actual = _ogsmCross(p.shops, p.cat, 'orders'); unit = 'number'; }
-    else if (p.metric === 'conv') { actual = getWeightedConv(p.shops, p.cat); unit = 'pct'; }
+    else if (p.metric === 'conv') { actual = getWeightedConv(p.shops, p.cat); unit = 'pct'; timeBound = false; }
+    else if (p.metric === 'aov') { actual = getWeightedAov(p.shops, p.cat); unit = 'money2'; timeBound = false; }
     const target = p.target;
     const progress = target ? actual / target * 100 : 0;
-    const gapPct = progress - tp;
-    const status = gapPct >= 0 ? '超前' : '滞后';
-    return { ok: true, metric: p.metric, cat: p.cat, shops: p.shops, actual, target, progress, gapPct, status, unit, source: '合成(站点汇总)' };
+    // 客单价/转化率不随时间进度比较，按阈值判定；销售额/单量按时间进度比较
+    let gapPct, status;
+    if (!timeBound) {
+        gapPct = progress - 100;
+        status = progress >= 100 ? '达标' : (progress >= 95 ? '预警' : '严重');
+    } else {
+        gapPct = progress - tp;
+        status = gapPct >= 10 ? '超前' : (gapPct >= 0 ? '达标' : (gapPct >= -10 ? '预警' : '严重'));
+    }
+    return { ok: true, metric: p.metric, cat: p.cat, shops: p.shops, actual, target, progress, gapPct, status, unit, source: '真实(本周期)' };
 }
 function buildOgsmCheck(row, data) {
     if (!data.ok) {
+        // 产品结构：无可量化数值目标，改为展示真实分层分布（按本月阈值分类）
+        if (row['板块'] === '产品结构') {
+            const cnt = {}; LAYERS.forEach(l => cnt[l] = 0);
+            (appData.sku_master || []).forEach(s => { if (cnt[s.layer] !== undefined) cnt[s.layer]++; });
+            const total = (appData.sku_master || []).length || 1;
+            const parts = LAYERS.map(l => l + ' ' + cnt[l] + '个(' + (cnt[l] / total * 100).toFixed(1) + '%)');
+            return '真实分层分布（全站 ' + total + ' SKU）：' + parts.join('、') + '。结构检查：超爆/爆款/头部占比越高越好，腰部/尾部占比偏高时需推动向头部迁移（门槛见《产品定位》：超爆整月≥300/爆款150-300/头部90-150/腰部10-90/尾部<10）。';
+        }
         const w = row.weeks[0] || {};
         return '定性目标（上架/质检/协同等），无可量化数值目标；团队周报状态：' + (w.status || '—') + '。检查：' + (w.check || '无');
     }
@@ -2010,7 +2039,7 @@ function renderWeeklyReview() {
             checkTxt = buildOgsmCheck(r, data);
         } else {
             targetTxt = fmtOgsmValue(data.target, data.unit) + (data.cat ? '<br><span style="color:var(--radium-text-muted);font-size:11px;">' + data.cat + '</span>' : '');
-            actualTxt = fmtOgsmValue(data.actual, data.unit) + ' <span class="tag tag-yellow">合成</span>';
+            actualTxt = fmtOgsmValue(data.actual, data.unit) + ' <span class="tag tag-green">真实</span>';
             progTxt = '<b>' + pct(data.progress) + '</b>';
             statusHtml = ogsmStatusTag(data.status) + ' ' + Math.abs(data.gapPct).toFixed(1) + '%';
             checkTxt = buildOgsmCheck(r, data);
@@ -2063,7 +2092,7 @@ function switchOgsmTab(tab) {
     else renderWeeklyReview();
 }
 function ogsmStatusTag(s) {
-    const m = { '滞后': 'red', '超前': 'green', '正常': 'cyan', '未开始': 'yellow' };
+    const m = { '滞后': 'red', '超前': 'green', '正常': 'cyan', '未开始': 'yellow', '达标': 'green', '预警': 'yellow', '严重': 'red' };
     return `<span class="tag tag-${m[s] || 'yellow'}">${esc(s || '—')}</span>`;
 }
 function renderOgsmReal() {
@@ -2084,7 +2113,12 @@ function renderOgsmReal() {
         <th style="min-width:230px;">检查C</th><th style="min-width:200px;">下一步计划</th>
     </tr></thead><tbody>`;
     o.rows.forEach(r => {
+        const d = computeOgsmFromRow(r);
         const w = r.weeks[0] || {};
+        const prog = d.ok ? `<b>${pct(d.progress)}</b>` : '—';
+        const st = d.ok ? ogsmStatusTag(d.status) + ' ' + Math.abs(d.gapPct).toFixed(1) + '%' : ogsmStatusTag(w.status);
+        const chk = d.ok ? buildOgsmCheck(r, d) : buildOgsmCheck(r, d);
+        const fillD = d.ok ? '完成' + fmtOgsmValue(d.actual, d.unit) + '，目标' + fmtOgsmValue(d.target, d.unit) + '，进度' + pct(d.progress) + '，' + d.status + Math.abs(d.gapPct).toFixed(1) + '%' : (w.D || '—');
         html += `<tr>
             <td><b>${esc(r['板块'])}</b></td>
             <td style="white-space:pre-wrap;">${esc(r['目的'])}</td>
@@ -2094,10 +2128,10 @@ function renderOgsmReal() {
             <td style="white-space:pre-wrap;">${esc(r['计划'])}</td>
             <td>${esc(r['落地店铺'])}</td>
             <td>${esc(r['责任人'])}</td>
-            <td style="white-space:pre-wrap;">${esc(w.D)}</td>
-            <td>${ogsmStatusTag(w.status)}</td>
-            <td style="white-space:pre-wrap;">${esc(w.check)}</td>
-            <td style="white-space:pre-wrap;">${esc(w.next)}</td>
+            <td style="white-space:pre-wrap;">${esc(fillD)}</td>
+            <td>${st}</td>
+            <td style="white-space:pre-wrap;max-width:230px;">${esc(chk)}</td>
+            <td style="white-space:pre-wrap;">${esc(w.next || '—')}</td>
         </tr>`;
     });
     html += `</tbody></table>`;
