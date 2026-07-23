@@ -8,6 +8,9 @@
 
 let appData = {};
 let A = null;                 // 当前月 actuals
+// 批量核对 items 容器（站点/类目板块使用）。修复：原代码直接 window._BAT.site = ... 抛 TypeError
+const _BAT = { site: null, category: null, product: null };
+window._BAT = _BAT;
 const state = { page: 'site', sub: 'all', month: '7月', cutoff: '2026-07-14',
                 timeProgress: 45.2, shopLayer: 'all', catMetric: 'sales', productMetric: 'sales',
                 curShop: null, curShopMetric: 'uv', changeMetric: 'uv',
@@ -688,7 +691,8 @@ function verifyBatch(title, items) {
     const body = document.getElementById('vm-body');
     let html = '<div style="font-size:12px;color:var(--radium-text-muted);margin-bottom:10px;line-height:1.6;">本板块 ' + items.length + ' 项指标全部按真实数据从 sku_master 重算；过程+准确率如下，差异按占比染色（绿&lt;0.1%/青&lt;1%/黄&lt;5%/红≥5%/灰=数据源缺失）</div>';
     items.forEach(it => {
-        const r = _VR.run({ type: it.type, key: it.key, metric: it.metric });
+        // 修复：原 _VR.run({type, key, metric}) 漏传 site/cat/idx → 弹窗显示 "site == undefined"。改透传整 item
+        const r = _VR.run(it);
         const lastRes = r.steps.filter(s => s.isResult).pop();
         const tone = lastRes ? (lastRes.tone || 'green') : 'green';
         html += '<div style="border:1px solid var(--radium-border);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:rgba(255,255,255,.02);">';
@@ -1104,8 +1108,10 @@ function renderCategoryDetail(cat) {
     const sales = list.reduce((s, r) => s + r.actual_sales, 0);
     const orders = list.reduce((s, r) => s + r.actual_orders, 0);
     const amountOri = list.reduce((s, r) => s + (r.amount_ori || 0), 0);
-    const targetSales = list.reduce((s, r) => s + (r.target_orders || 0) * r.aov, 0);
-    const targetOrders = list.reduce((s, r) => s + (r.target_orders || 0), 0);
+    // 修复：源无单品级目标（sku_master.target_orders=0），原 targetSales=0 导致 hero 目标=0、进度=0%。
+    // 类目总目标从 A.by_category[cat].target_sales 取；按店铺/分层筛选时仍引用全月类目目标（源无类目-店铺独立目标）
+    const targetSales = (A.by_category[cat] || {}).target_sales || 0;
+    const targetOrders = (A.by_category[cat] || {}).target_orders || 0;
     const prog = targetSales ? (sales / targetSales * 100) : 0;
     const gap = sales - targetSales * state.timeProgress / 100;
     const aov = orders ? amountOri / orders : 0;
@@ -1896,7 +1902,11 @@ function getChannelChangeData(site) {
 }
 
 function _skuMainChannel(sku, site) {
-    const shares = CH_SHARE[site] || CH_SHARE['AC美'];
+    // 修复：原 CH_SHARE 全局未定义 → BV美 渠道变化明细抛错。改用 actuals.by_site[site].channels 销售额占比实时构造
+    const siteCh = ((A.by_site[site] || {}).channels) || {};
+    const total = Object.values(siteCh).reduce((s, c) => s + (c.sales || 0), 0);
+    const shares = {};
+    CHANNELS.forEach(ch => { shares[ch] = total ? ((siteCh[ch] || {}).sales || 0) / total : 1 / CHANNELS.length; });
     let r = (Math.abs(sku.split('').reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) % 1000000, 0)) % 1000) / 1000.0;
     let acc = 0;
     for (const [ch, sh] of Object.entries(shares)) { acc += sh; if (r <= acc) return ch; }
@@ -2465,17 +2475,6 @@ function buildOgsmCheck(row, data) {
     parts.push('实际值口径：站点/类目汇总为真实 7月本周期数据（来自《7月飞机杯复盘数据源.xlsx》），进度为真实口径。');
     return parts.join(' ') + ' 建议：聚焦滞后维度，加大投放/优化转化，确保全月目标达成。';
 }
-function autoFillWeeklyReview() {
-    const o = appData.ogsm_july; if (!o || !o.rows) return;
-    o.rows.forEach((r, i) => {
-        const key = 'r' + i; const data = computeOgsmFromRow(r);
-        const dEl = document.getElementById('d_' + key), cEl = document.getElementById('c_' + key);
-        const defD = formatOgsmD(data, r);
-        if (dEl) dEl.value = defD;
-        if (cEl) cEl.value = buildOgsmCheck(r, data);
-    });
-    alert('已根据真实 7月OGSM + 团队填写规则 自动填写完成D与检查（可继续编辑）');
-}
 function renderWeeklyReview() {
     const week = document.getElementById('ogsms-week').value;
     const o = appData.ogsm_july;
@@ -2573,7 +2572,25 @@ function switchOgsmTab(tab) {
     document.getElementById('ogsms-real-wrap').style.display = real ? '' : 'none';
     document.getElementById('ogsms-gen-wrap').style.display = real ? 'none' : '';
     if (real) renderOgsmReal();
-    else renderWeeklyReview();
+    else {
+        // 一键生成：进入 tab 就根据当前周+真实 OGSM 自动填 D/检查，不需再点按钮、不弹 alert
+        renderWeeklyReview();
+        autoFillWeeklyReview();
+    }
+}
+function autoFillWeeklyReview() {
+    const o = appData.ogsm_july; if (!o || !o.rows) return;
+    let filled = 0;
+    o.rows.forEach((r, i) => {
+        const key = 'r' + i; const data = computeOgsmFromRow(r);
+        const dEl = document.getElementById('d_' + key), cEl = document.getElementById('c_' + key);
+        const defD = formatOgsmD(data, r);
+        if (dEl) { dEl.value = defD; filled++; }
+        if (cEl) cEl.value = buildOgsmCheck(r, data);
+    });
+    // 静默成功：不再 alert
+    const banner = document.getElementById('ogsms-gen-banner');
+    if (banner) { banner.textContent = '已根据真实 7月OGSM + 团队填写规则 自动填写 ' + filled + ' 行 D/检查（可继续编辑）'; banner.style.display = ''; }
 }
 function ogsmStatusTag(s) {
     const m = { '滞后': 'red', '超前': 'green', '正常': 'cyan', '未开始': 'yellow', '达标': 'green', '预警': 'yellow', '严重': 'red', '缺目标': 'gray' };

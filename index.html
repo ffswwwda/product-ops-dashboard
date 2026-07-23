@@ -444,7 +444,7 @@
             <div id="ogsms-gen-wrap" style="display:none;">
                 <div class="ogsm-table-head">
                     <span class="ogsm-table-title">生成周复盘（驱动真实7月OGSM）</span>
-                    <span class="ogsm-table-meta">逐行解析真实OGSM目标值，前端实时计算完成进度与交叉检查项；可编辑D/检查并存本地</span>
+                    <span class="ogsm-table-meta">切到此页即一键生成：逐行解析真实OGSM目标 → 按团队规则（完成D=实际/目标/完成率/应达/状态；检查=交叉校验）自动填写，可编辑</span>
                 </div>
                 <div class="filter-bar" style="margin-bottom:20px;">
                     <div class="filter-group"><span class="filter-label">选择周期</span>
@@ -454,6 +454,7 @@
                     <button class="btn btn-secondary" onclick="saveWeeklyReview()">保存填写</button>
                     <button class="btn btn-secondary" onclick="copyOGSMContent()">复制内容</button>
                 </div>
+                <div id="ogsms-gen-banner" style="display:none;background:linear-gradient(135deg,rgba(34,197,94,.12),rgba(34,211,238,.08));border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--radium-text-strong);"></div>
                 <div id="ogsms-report" style="overflow-x:auto;"><div class="empty-state"><div class="empty-state-icon"></div><div class="empty-state-title">点击生成周复盘</div>
                     <div class="empty-state-desc">系统将根据 OGSM配置 渲染表格，并自动填写完成D与检查字段</div></div></div>
             </div>
