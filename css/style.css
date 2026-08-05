@@ -1185,12 +1185,12 @@ input[type="checkbox"] {
 .btn-verify:active { transform: scale(.97); }
 
 /* ===== 渠道单量对比复盘（port 自独立报告页，作用域隔离，干净亮色克制风） ===== */
-#page-channel-review { --cr-blue:#2563EB; --cr-green:#16A34A; --cr-orange:#F59E0B; --cr-red:#DC2626; --cr-gray:#64748B; --cr-lgray:#E2E8F0; --cr-bg:#F8FAFC; --cr-ink:#0F172A; --cr-card:#fff; --cr-mut:#94A3B8; max-width:1200px; margin:0 auto; }
+#page-channel-review { --cr-blue:#2563EB; --cr-green:#16A34A; --cr-orange:#F59E0B; --cr-red:#DC2626; --cr-gray:#64748B; --cr-lgray:#E2E8F0; --cr-bg:#F8FAFC; --cr-ink:#0F172A; --cr-card:#fff; --cr-mut:#94A3B8; background:var(--cr-bg); max-width:1200px; margin:0 auto; }
 #page-channel-review .cr-wrap { padding: 8px 4px 80px; }
-#page-channel-review .hero { padding:24px 0 8px; }
+#page-channel-review .hero { padding:40px 0 8px; }
 #page-channel-review .hero .sub { color:var(--cr-gray); font-size:14px; letter-spacing:.04em; margin-bottom:8px; }
-#page-channel-review .hero .big { font-size:64px; font-weight:800; letter-spacing:-.03em; line-height:1; color:var(--cr-blue); }
-#page-channel-review .hero .big .delta { font-size:26px; font-weight:700; margin-left:14px; color:var(--cr-red); }
+#page-channel-review .hero .big { font-size:96px; font-weight:800; letter-spacing:-.03em; line-height:1; color:var(--cr-blue); }
+#page-channel-review .hero .big .delta { font-size:32px; font-weight:700; margin-left:18px; color:var(--cr-red); }
 #page-channel-review .hero .desc { color:var(--cr-gray); font-size:14px; margin-top:12px; max-width:840px; line-height:1.7; }
 #page-channel-review .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-top:24px; }
 #page-channel-review .kpi { position:relative; background:var(--cr-card); border:1px solid var(--cr-lgray); border-radius:10px; padding:20px 18px; display:flex; flex-direction:column; align-items:center; text-align:center; overflow:hidden; }
@@ -1199,7 +1199,7 @@ input[type="checkbox"] {
 #page-channel-review .kpi.o::before { background:var(--cr-orange); }
 #page-channel-review .kpi.r::before { background:var(--cr-red); }
 #page-channel-review .kpi .lab { font-size:12px; font-weight:500; color:var(--cr-mut); margin-bottom:10px; }
-#page-channel-review .kpi .num { font-size:32px; font-weight:700; letter-spacing:-.02em; line-height:1; color:var(--cr-blue); }
+#page-channel-review .kpi .num { font-size:40px; font-weight:700; letter-spacing:-.02em; line-height:1; color:var(--cr-blue); }
 #page-channel-review .kpi.g .num { color:var(--cr-green); }
 #page-channel-review .kpi.o .num { color:var(--cr-orange); }
 #page-channel-review .kpi.r .num { color:var(--cr-red); }
@@ -1207,7 +1207,7 @@ input[type="checkbox"] {
 #page-channel-review section { margin-top:48px; }
 #page-channel-review .sec-head { display:flex; align-items:baseline; gap:14px; margin-bottom:6px; }
 #page-channel-review .sec-head .idx { font-size:13px; font-weight:700; color:var(--cr-blue); background:#EFF4FF; padding:3px 10px; border-radius:6px; }
-#page-channel-review .sec-head h2 { font-size:22px; font-weight:800; letter-spacing:-.01em; }
+#page-channel-review .sec-head h2 { font-size:24px; font-weight:800; letter-spacing:-.01em; }
 #page-channel-review .sec-sub { color:var(--cr-gray); font-size:14px; margin:8px 0 20px; line-height:1.7; }
 #page-channel-review .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; align-items:start; }
 #page-channel-review .chart-card { background:var(--cr-card); border:1px solid var(--cr-lgray); border-radius:10px; padding:20px 22px; position:relative; overflow:hidden; }
@@ -1240,17 +1240,17 @@ input[type="checkbox"] {
 #page-channel-review .tab:hover { border-color:var(--cr-blue); color:var(--cr-blue); }
 #page-channel-review .tab.active { background:var(--cr-blue); color:#fff; border-color:var(--cr-blue); }
 #page-channel-review .tab .td { font-size:11px; margin-left:6px; font-weight:700; }
-#page-channel-review .panel { background:var(--cr-card); border:1px solid var(--cr-lgray); border-radius:10px; padding:18px 22px; margin-bottom:18px; }
+#page-channel-review .panel { background:var(--cr-card); border:1px solid var(--cr-lgray); border-radius:10px; padding:20px 22px; margin-bottom:18px; }
 #page-channel-review .panel h4 { font-size:14px; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
 #page-channel-review .panel h4 .dot { width:8px; height:8px; border-radius:50%; }
 #page-channel-review .dot-r { background:var(--cr-red); }
 #page-channel-review .dot-g { background:var(--cr-green); }
-#page-channel-review .reason { background:var(--cr-card); border:1px solid var(--cr-lgray); border-radius:10px; padding:20px 24px; position:relative; overflow:hidden; }
+#page-channel-review .reason { background:var(--cr-card); border:1px solid var(--cr-lgray); border-radius:10px; padding:24px 26px; position:relative; overflow:hidden; }
 #page-channel-review .reason::before { content:""; position:absolute; top:0; left:0; bottom:0; width:4px; background:var(--cr-orange); }
 #page-channel-review .reason ul { margin:10px 0 0 18px; }
 #page-channel-review .reason li { font-size:13.5px; color:#475569; margin-bottom:10px; line-height:1.7; }
 #page-channel-review .reason li b { color:var(--cr-ink); }
-#page-channel-review .reco { background:var(--cr-card); border:1px solid var(--cr-lgray); border-radius:10px; padding:20px 24px; position:relative; overflow:hidden; }
+#page-channel-review .reco { background:var(--cr-card); border:1px solid var(--cr-lgray); border-radius:10px; padding:24px 26px; position:relative; overflow:hidden; }
 #page-channel-review .reco::before { content:""; position:absolute; top:0; left:0; bottom:0; width:4px; background:var(--cr-green); }
 #page-channel-review .reco ol { margin:10px 0 0 20px; }
 #page-channel-review .reco li { font-size:13.5px; color:#475569; margin-bottom:12px; line-height:1.7; }

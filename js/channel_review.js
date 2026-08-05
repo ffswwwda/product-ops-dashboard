@@ -147,7 +147,6 @@ function crFill(D) {
     if (hasEcharts) {
         const chBar = echarts.init(document.getElementById('cr-chBar'), 'light');
         chBar.setOption({
-            color: ['#94A3B8', '#2563EB'],
             tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: v => crFmt(v) + ' 单' },
             legend: { data: [CPL, CL], top: 0, right: 0, textStyle: { color: '#64748B' } },
             grid: { left: 60, right: 20, top: 36, bottom: 30 },
@@ -214,7 +213,6 @@ function crFill(D) {
     if (hasEcharts) {
         const catBar = echarts.init(document.getElementById('cr-catBar'), 'light');
         catBar.setOption({
-            color: ['#94A3B8', '#2563EB'],
             tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, valueFormatter: v => crFmt(v) + ' 单' },
             legend: { data: [CPL, CL], top: 0, right: 0, textStyle: { color: '#64748B' } },
             grid: { left: 60, right: 20, top: 36, bottom: 30 },
