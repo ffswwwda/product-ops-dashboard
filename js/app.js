@@ -839,6 +839,7 @@ function switchPage(page, sub) {
         change: { uv: 'page-change', aov: 'page-change', orders: 'page-change' },
         operations: { ops: 'page-operations-ops', ads: 'page-operations-ads' },
         review: { ogsms: 'page-review-ogsms', monthly: 'page-review-monthly' },
+        'channel-review': { all: 'page-channel-review', s1: 'page-channel-review', s2: 'page-channel-review', s3: 'page-channel-review', s4: 'page-channel-review', s5: 'page-channel-review' },
         strategy: { gen: 'page-strategy-gen', lib: 'page-strategy-lib' },
         audit: { all: 'page-audit' } };
     const sec = map[page];
@@ -862,6 +863,7 @@ function switchPage(page, sub) {
     else if (page === 'strategy' && sub === 'gen') generateStrategy();
     else if (page === 'strategy' && sub === 'lib') renderStrategyLib();
     else if (page === 'audit') renderAudit();
+    else if (page === 'channel-review') renderChannelReview(sub);
     attachDerivation(id, page, sub);
     setTimeout(() => initVerifyBtns(), 50);
 }
@@ -3084,6 +3086,21 @@ const DERIVATIONS = {
     ],
     note: '这是全站数据的「可验证性」总入口：每个数字都能追到原始字段与公式。',
     code: 'app.js::renderAudit（全前端重算）'
+  },
+  'channel-review': {
+    title: '渠道单量对比复盘', badge: 'real', method: 'combined',
+    source: '数据源：独立报告《7月 vs 6月 渠道单量对比分析》（用户本地 HTML）。已将其数据 D 抽取为 js/data/channel_review/<period>.json（period=2026-07），由 js/channel_review.js 前端渲染，形式与口径完全沿用原报告。',
+    metrics: [
+      { n: '总单量 / 环比', m: 'source', f: 'D.july_total / D.june_total -> 直接计算差值与百分比（真实）' },
+      { n: '各渠道单量(6/7月)', m: 'source', f: 'D.ch_june / D.ch_july（真实，8 大渠道）' },
+      { n: '类目单量(6/7月)', m: 'source', f: 'D.cat_data[].june/july（真实）' },
+      { n: '每个 SKU 各渠道单量', m: 'source', f: 'D.sku_detail[].ch_june/ch_july/ch_delta（真实，100 SKU）' },
+      { n: '渠道下滑/提升 SKU', m: 'source', f: 'D.ch_sku[ch].declines_top/gains_top（真实）' },
+      { n: 'KPI / 诊断 / 行动建议', m: 'frontend', f: '沿用原报告自动生成逻辑（chDiag / 原因分析 / 行动建议）' },
+      { n: '逐月更新', m: 'frontend', f: 'index=channel_review_index.json 列出周期；新增月份只需放 <period>.json 并在 index 登记' }
+    ],
+    note: '渠道复盘为独立板块，数据来自用户提供的月度报告 HTML，已结构化存储并按周期切换。所有单量=订单数，均为报告原始真实值，未做推算。',
+    code: 'channel_review.js::renderChannelReview / crFill；数据 js/data/channel_review/'
   }
 };
 
